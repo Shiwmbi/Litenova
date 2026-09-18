@@ -1,29 +1,23 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
 
 # Virtual environment
 .venv/
-venv/
 
-# Local database
+# Local application data
 *.db
 *.db-journal
-
-# EPUB books
 *.epub
+
+# PyInstaller
+build/
+dist/
+*.spec
 
 # VS Code
 .vscode/
 
-# Build output
-build/
-dist/
-
-# PyInstaller
-*.spec
-
-# Temporary files
-*.tmp
+# Logs/temp
 *.log
+*.tmp
