@@ -1,0 +1,1022 @@
+Litenova Floating Window Diagnostic
+
+
+
+============================================================
+UNEXPECTED WINDOW #1
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #2
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #3
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #4
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #5
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #6
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #7
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #8
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #9
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #10
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #11
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #12
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #13
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #14
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #15
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #16
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #17
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #18
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #19
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+
+
+
+============================================================
+UNEXPECTED WINDOW #20
+============================================================
+
+Widget class:
+QLabel
+
+Python class:
+QLabel
+
+Object name:
+libraryCardAuthor
+
+Window title:
+
+
+Parent:
+None
+
+Window size:
+26 x 16
+
+Window flags:
+134279169
+
+============================================================
+PYTHON CALL STACK
+============================================================
+
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 213, in <module>
+    sys.exit(main())
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 204, in main
+    return app.exec()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2024, in sort_changed
+    self.load_books()
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2522, in load_books
+    self.cards = self._create_view_cards(
+  File "C:\Projects\Litenova\app\pages\library_page.py", line 2716, in _create_view_cards
+    card = BookCard(
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 54, in __init__
+    self.build_ui()
+  File "C:\Projects\Litenova\app\widgets\book_card.py", line 198, in build_ui
+    self.list_progress.setVisible(self.show_progress)
+  File "C:\Projects\Litenova\diagnose_floating_windows.py", line 132, in eventFilter
+    {''.join(traceback.format_stack(limit=15))}
+
+
+============================================================
+

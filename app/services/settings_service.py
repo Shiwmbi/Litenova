@@ -102,28 +102,10 @@ def set_reader_font_size(font_size):
 
 
 def get_reader_theme():
-    theme = get_setting(
-        "reader_theme",
-        DEFAULT_THEME,
-    )
-
-    if theme not in [
-        "dark",
-        "light",
-    ]:
-        theme = DEFAULT_THEME
-
-    return theme
+    """Litenova uses its original dark theme for every reader."""
+    return DEFAULT_THEME
 
 
-def set_reader_theme(theme):
-    if theme not in [
-        "dark",
-        "light",
-    ]:
-        theme = DEFAULT_THEME
-
-    set_setting(
-        "reader_theme",
-        theme,
-    )
+def set_reader_theme(_theme):
+    """Retained for compatibility; theme switching is intentionally disabled."""
+    set_setting("reader_theme", DEFAULT_THEME)

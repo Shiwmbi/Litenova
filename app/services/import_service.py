@@ -1,11 +1,19 @@
-from pathlib import Path
-
+import re
 import shutil
 import uuid
+
+from pathlib import Path
 
 from app.services.epub_service import (
     read_epub_metadata,
     extract_cover,
+)
+
+from app.services.cbz_service import (
+    read_cbz_metadata,
+    extract_cbz_cover,
+    natural_sort_key,
+    InvalidCBZError,
 )
 
 from app.services.path_service import (
@@ -14,9 +22,15 @@ from app.services.path_service import (
 
 from app.database.books_repository import (
     add_book,
-    get_book_by_epub_path,
+    add_comic_chapter,
+    delete_book,
+    get_book_by_file_path,
 )
 
+
+# ============================================================
+# STORAGE DIRECTORIES
+# ============================================================
 
 DATA_DIR = get_data_dir()
 
@@ -35,34 +49,95 @@ COVERS_DIR = (
 # IMPORT ERRORS
 # ============================================================
 
-class EPUBImportError(
-    Exception
-):
-    pass
+class BookImportError(Exception):
+    """
+    Base error for Litenova imports.
+    """
 
 
 class DuplicateBookError(
-    EPUBImportError
+    BookImportError
 ):
-    pass
+    """
+    Raised when a book or comic series
+    already exists in the Library.
+    """
 
 
-class InvalidEPUBError(
-    EPUBImportError
+class InvalidBookError(
+    BookImportError
 ):
-    pass
+    """
+    Raised when the selected book cannot
+    be read.
+    """
+
+
+class UnsupportedFormatError(
+    BookImportError
+):
+    """
+    Raised when a selected file is not
+    EPUB or CBZ.
+    """
 
 
 # ============================================================
-# DESTINATION PATH
+# NORMALIZE TITLE
+# ============================================================
+
+def normalize_title(
+    title,
+    fallback,
+):
+    if title is None:
+        return fallback
+
+    title = str(
+        title
+    ).strip()
+
+    if not title:
+        return fallback
+
+    return title
+
+
+# ============================================================
+# NORMALIZE AUTHOR
+# ============================================================
+
+def normalize_author(
+    author,
+):
+    if author is None:
+        return "Unknown Author"
+
+    author = str(
+        author
+    ).strip()
+
+    if author.lower() in [
+        "",
+        "unknown",
+        "<unknown>",
+        "none",
+    ]:
+        return "Unknown Author"
+
+    return author
+
+
+# ============================================================
+# CREATE DESTINATION FOR ONE FILE
 # ============================================================
 
 def create_destination_path(
     source_path,
 ):
     """
-    Create a safe destination path for
-    the copied EPUB.
+    Create a safe destination for a single
+    EPUB or CBZ file.
     """
 
     destination = (
@@ -70,28 +145,32 @@ def create_destination_path(
         / source_path.name
     )
 
+    # No collision.
     if not destination.exists():
         return destination
 
+    # Check whether this destination is already
+    # registered in the database.
     existing_book = (
-        get_book_by_epub_path(
+        get_book_by_file_path(
             str(destination)
         )
     )
 
     if existing_book:
-
         raise DuplicateBookError(
             (
-                "This EPUB is already "
+                "This book is already "
                 "in your library."
             )
         )
 
+    # File exists on disk but is not registered.
+    # Generate a unique filename instead.
     unique_name = (
         f"{source_path.stem}_"
         f"{uuid.uuid4().hex[:8]}"
-        f"{source_path.suffix}"
+        f"{source_path.suffix.lower()}"
     )
 
     return (
@@ -101,14 +180,229 @@ def create_destination_path(
 
 
 # ============================================================
-# IMPORT EPUB
+# SAVE COVER
 # ============================================================
 
-def import_epub(
+def save_cover(
+    cover,
+):
+    """
+    Save extracted cover image data.
+
+    Returns the saved cover path,
+    or None when no cover exists.
+    """
+
+    if not cover:
+        return None
+
+    cover_data = cover.get(
+        "data"
+    )
+
+    if not cover_data:
+        return None
+
+    extension = (
+        cover.get(
+            "extension"
+        )
+        or ".jpg"
+    )
+
+    if not extension.startswith(
+        "."
+    ):
+        extension = (
+            "."
+            + extension
+        )
+
+    cover_filename = (
+        f"{uuid.uuid4().hex}"
+        f"{extension.lower()}"
+    )
+
+    cover_file = (
+        COVERS_DIR
+        / cover_filename
+    )
+
+    cover_file.write_bytes(
+        cover_data
+    )
+
+    return str(
+        cover_file
+    )
+
+
+# ============================================================
+# PREPARE EPUB
+# ============================================================
+
+def prepare_epub(
     source_path,
 ):
     """
-    Validate, copy and register an EPUB.
+    Read EPUB metadata and cover information.
+    """
+
+    try:
+        metadata = (
+            read_epub_metadata(
+                source_path
+            )
+        )
+
+    except Exception as error:
+        raise InvalidBookError(
+            (
+                "The selected file could not "
+                "be read as a valid EPUB."
+            )
+        ) from error
+
+    title = normalize_title(
+        metadata.get(
+            "title"
+        ),
+        source_path.stem,
+    )
+
+    author = normalize_author(
+        metadata.get(
+            "author"
+        )
+    )
+
+    try:
+        cover = extract_cover(
+            source_path
+        )
+
+    except Exception:
+        cover = None
+
+    return {
+        "title": title,
+        "author": author,
+        "file_format": "epub",
+        "category": "light_novel",
+        "page_count": None,
+        "cover": cover,
+    }
+
+
+# ============================================================
+# PREPARE CBZ
+# ============================================================
+
+def prepare_cbz(
+    source_path,
+    category,
+):
+    """
+    Read CBZ metadata and cover information.
+
+    category must be:
+        manga
+        manhwa
+    """
+
+    if category not in [
+        "manga",
+        "manhwa",
+    ]:
+        raise BookImportError(
+            (
+                "CBZ files must be categorized "
+                "as Manga or Manhwa."
+            )
+        )
+
+    try:
+        metadata = (
+            read_cbz_metadata(
+                source_path
+            )
+        )
+
+    except InvalidCBZError as error:
+        raise InvalidBookError(
+            str(error)
+        ) from error
+
+    except Exception as error:
+        raise InvalidBookError(
+            (
+                "The selected file could not "
+                "be read as a valid CBZ."
+            )
+        ) from error
+
+    title = normalize_title(
+        metadata.get(
+            "title"
+        ),
+        source_path.stem,
+    )
+
+    author = normalize_author(
+        metadata.get(
+            "author"
+        )
+    )
+
+    page_count = metadata.get(
+        "page_count"
+    )
+
+    try:
+        page_count = int(
+            page_count
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        page_count = None
+
+    try:
+        cover = extract_cbz_cover(
+            source_path
+        )
+
+    except Exception:
+        cover = None
+
+    return {
+        "title": title,
+        "author": author,
+        "file_format": "cbz",
+        "category": category,
+        "page_count": page_count,
+        "cover": cover,
+    }
+
+
+# ============================================================
+# IMPORT ONE BOOK FILE
+# ============================================================
+
+def import_book(
+    source_path,
+    category=None,
+):
+    """
+    Import one EPUB or one CBZ.
+
+    EPUB:
+        automatically becomes Light Novel
+
+    CBZ:
+        must be Manga or Manhwa
     """
 
     BOOKS_DIR.mkdir(
@@ -130,8 +424,7 @@ def import_epub(
     # ========================================================
 
     if not source_path.exists():
-
-        raise EPUBImportError(
+        raise BookImportError(
             (
                 "The selected file "
                 "no longer exists."
@@ -139,92 +432,44 @@ def import_epub(
         )
 
     if not source_path.is_file():
-
-        raise EPUBImportError(
+        raise BookImportError(
             (
                 "The selected path "
                 "is not a file."
             )
         )
 
-    if (
-        source_path.suffix.lower()
-        != ".epub"
-    ):
+    extension = (
+        source_path
+        .suffix
+        .lower()
+    )
 
-        raise InvalidEPUBError(
+    # ========================================================
+    # READ METADATA
+    # ========================================================
+
+    if extension == ".epub":
+
+        book_data = prepare_epub(
+            source_path
+        )
+
+    elif extension == ".cbz":
+
+        book_data = prepare_cbz(
+            source_path,
+            category,
+        )
+
+    else:
+
+        raise UnsupportedFormatError(
             (
-                "Litenova only supports "
-                "EPUB files."
+                "Litenova currently supports "
+                "EPUB and CBZ files only."
             )
         )
-
-    # ========================================================
-    # VALIDATE EPUB
-    # ========================================================
-
-    try:
-
-        metadata = (
-            read_epub_metadata(
-                source_path
-            )
-        )
-
-    except Exception as error:
-
-        raise InvalidEPUBError(
-            (
-                "The selected file could not "
-                "be read as a valid EPUB."
-            )
-        ) from error
-
-    # ========================================================
-    # CLEAN METADATA
-    # ========================================================
-
-    title = (
-        metadata.get("title")
-        or "Unknown Title"
-    )
-
-    author = (
-        metadata.get("author")
-        or "Unknown Author"
-    )
-
-    title = str(
-        title
-    ).strip()
-
-    author = str(
-        author
-    ).strip()
-
-    if not title:
-        title = (
-            "Unknown Title"
-        )
-
-    if author.lower() in [
-        "",
-        "unknown",
-        "<unknown>",
-        "none",
-    ]:
-
-        author = (
-            "Unknown Author"
-        )
-
-    metadata["title"] = (
-        title
-    )
-
-    metadata["author"] = (
-        author
-    )
 
     # ========================================================
     # DESTINATION
@@ -236,14 +481,14 @@ def import_epub(
         )
     )
 
+    copied_file = False
     cover_path = None
-
-    copied_epub = False
+    book_id = None
 
     try:
 
         # ====================================================
-        # COPY EPUB
+        # COPY FILE
         # ====================================================
 
         shutil.copy2(
@@ -251,84 +496,525 @@ def import_epub(
             destination_path,
         )
 
-        copied_epub = True
+        copied_file = True
 
         # ====================================================
         # COVER
         # ====================================================
 
-        try:
-
-            cover = extract_cover(
-                destination_path
-            )
-
-        except Exception:
-
-            cover = None
-
-        if cover:
-
-            extension = (
-                cover.get(
-                    "extension"
-                )
-                or ".jpg"
-            )
-
-            if not extension.startswith(
-                "."
-            ):
-
-                extension = (
-                    "."
-                    + extension
-                )
-
-            cover_filename = (
-                f"{uuid.uuid4().hex}"
-                f"{extension}"
-            )
-
-            cover_file = (
-                COVERS_DIR
-                / cover_filename
-            )
-
-            cover_file.write_bytes(
-                cover["data"]
-            )
-
-            cover_path = str(
-                cover_file
-            )
+        cover_path = save_cover(
+            book_data[
+                "cover"
+            ]
+        )
 
         # ====================================================
         # DATABASE
         # ====================================================
 
-        added = add_book(
-            title=title,
-            author=author,
+        book_id = add_book(
+            title=book_data[
+                "title"
+            ],
+
+            author=book_data[
+                "author"
+            ],
+
+            # Legacy database compatibility.
             epub_path=str(
                 destination_path
             ),
+
+            file_path=str(
+                destination_path
+            ),
+
+            file_format=book_data[
+                "file_format"
+            ],
+
+            category=book_data[
+                "category"
+            ],
+
             cover_path=cover_path,
+
+            page_count=book_data[
+                "page_count"
+            ],
         )
 
-        if not added:
+        if not book_id:
+            raise DuplicateBookError(
+                (
+                    "This book is already "
+                    "in your library."
+                )
+            )
+
+        # ====================================================
+        # SINGLE CBZ = ONE COMIC CHAPTER
+        # ====================================================
+
+        if (
+            book_data[
+                "file_format"
+            ]
+            == "cbz"
+        ):
+            add_comic_chapter(
+                book_id=book_id,
+                chapter_index=0,
+                title=book_data[
+                    "title"
+                ],
+                file_path=str(
+                    destination_path
+                ),
+                page_count=(
+                    book_data[
+                        "page_count"
+                    ]
+                    or 0
+                ),
+            )
+
+    except Exception:
+
+        # Delete database record if it was created.
+        if book_id:
+
+            try:
+                delete_book(
+                    book_id
+                )
+
+            except Exception:
+                pass
+
+        # Delete extracted cover.
+        if cover_path:
+
+            cover_file = Path(
+                cover_path
+            )
+
+            if cover_file.exists():
+
+                try:
+                    cover_file.unlink()
+
+                except OSError:
+                    pass
+
+        # Delete copied book.
+        if copied_file:
+
+            if destination_path.exists():
+
+                try:
+                    destination_path.unlink()
+
+                except OSError:
+                    pass
+
+        raise
+
+    return {
+        "title": book_data[
+            "title"
+        ],
+
+        "author": book_data[
+            "author"
+        ],
+
+        "file_format": book_data[
+            "file_format"
+        ],
+
+        "category": book_data[
+            "category"
+        ],
+
+        "page_count": book_data[
+            "page_count"
+        ],
+
+        "file_path": str(
+            destination_path
+        ),
+
+        "cover_path": cover_path,
+
+        "book_id": book_id,
+    }
+
+
+# ============================================================
+# IMPORT WHOLE CBZ FOLDER
+# ============================================================
+
+def import_cbz_folder(
+    folder_path,
+    category,
+):
+    """
+    Import a folder where each CBZ file
+    represents one Manga/Manhwa chapter.
+
+    Example:
+
+        Solo Leveling/
+            Chapter 001.cbz
+            Chapter 002.cbz
+            Chapter 003.cbz
+
+    becomes ONE Library entry:
+
+        Solo Leveling
+            Chapter 001
+            Chapter 002
+            Chapter 003
+    """
+
+    if category not in [
+        "manga",
+        "manhwa",
+    ]:
+        raise BookImportError(
+            (
+                "Comic folders must be "
+                "Manga or Manhwa."
+            )
+        )
+
+    source_folder = Path(
+        folder_path
+    )
+
+    # ========================================================
+    # VALIDATE FOLDER
+    # ========================================================
+
+    if not source_folder.exists():
+
+        raise BookImportError(
+            (
+                "The selected folder "
+                "does not exist."
+            )
+        )
+
+    if not source_folder.is_dir():
+
+        raise BookImportError(
+            (
+                "The selected path "
+                "is not a folder."
+            )
+        )
+
+    # ========================================================
+    # FIND CBZ FILES
+    # ========================================================
+
+    cbz_files = [
+        path
+        for path in source_folder.iterdir()
+        if (
+            path.is_file()
+            and path.suffix.lower()
+            == ".cbz"
+        )
+    ]
+
+    cbz_files.sort(
+        key=lambda path: (
+            natural_sort_key(
+                path.name
+            )
+        )
+    )
+
+    if not cbz_files:
+
+        raise BookImportError(
+            (
+                "This folder does not contain "
+                "any CBZ files."
+            )
+        )
+
+    # ========================================================
+    # SERIES TITLE
+    # ========================================================
+
+    series_title = (
+        source_folder.name
+    )
+
+    safe_folder_name = re.sub(
+        r'[<>:"/\\|?*]+',
+        "_",
+        series_title,
+    ).strip()
+
+    if not safe_folder_name:
+        safe_folder_name = (
+            "Comic"
+        )
+
+    destination_folder = (
+        BOOKS_DIR
+        / safe_folder_name
+    )
+
+    # ========================================================
+    # DUPLICATE SERIES
+    # ========================================================
+
+    if destination_folder.exists():
+
+        existing = (
+            get_book_by_file_path(
+                str(
+                    destination_folder
+                )
+            )
+        )
+
+        if existing:
 
             raise DuplicateBookError(
                 (
-                    "This EPUB is already "
+                    "This Manga/Manhwa series "
+                    "is already in your library."
+                )
+            )
+
+        destination_folder = (
+            BOOKS_DIR
+            / (
+                safe_folder_name
+                + "_"
+                + uuid.uuid4().hex[:8]
+            )
+        )
+
+    # ========================================================
+    # VALIDATE EVERY CHAPTER BEFORE COPYING
+    # ========================================================
+
+    chapter_data = []
+
+    total_pages = 0
+
+    series_author = (
+        "Unknown Author"
+    )
+
+    first_cover = None
+
+    for index, cbz_file in enumerate(
+        cbz_files
+    ):
+
+        data = prepare_cbz(
+            cbz_file,
+            category,
+        )
+
+        page_count = (
+            data[
+                "page_count"
+            ]
+            or 0
+        )
+
+        total_pages += (
+            page_count
+        )
+
+        # Use the first available author.
+        if (
+            series_author
+            == "Unknown Author"
+            and data[
+                "author"
+            ]
+            != "Unknown Author"
+        ):
+            series_author = (
+                data[
+                    "author"
+                ]
+            )
+
+        # First chapter provides the cover.
+        if index == 0:
+            first_cover = (
+                data[
+                    "cover"
+                ]
+            )
+
+        # Prefer the CBZ filename as chapter
+        # title because comic metadata sometimes
+        # repeats the series title for every file.
+        chapter_title = (
+            cbz_file.stem
+        )
+
+        chapter_data.append(
+            {
+                "source": cbz_file,
+                "title": chapter_title,
+                "page_count": page_count,
+            }
+        )
+
+    # ========================================================
+    # CREATE DESTINATION FOLDER
+    # ========================================================
+
+    destination_folder.mkdir(
+        parents=True,
+        exist_ok=False,
+    )
+
+    cover_path = None
+    book_id = None
+
+    try:
+
+        copied_chapters = []
+
+        # ====================================================
+        # COPY CHAPTER CBZ FILES
+        # ====================================================
+
+        for chapter in chapter_data:
+
+            destination = (
+                destination_folder
+                / chapter[
+                    "source"
+                ].name
+            )
+
+            shutil.copy2(
+                chapter[
+                    "source"
+                ],
+                destination,
+            )
+
+            copied_chapters.append(
+                {
+                    "title": chapter[
+                        "title"
+                    ],
+
+                    "file_path": str(
+                        destination
+                    ),
+
+                    "page_count": chapter[
+                        "page_count"
+                    ],
+                }
+            )
+
+        # ====================================================
+        # SAVE SERIES COVER
+        # ====================================================
+
+        cover_path = save_cover(
+            first_cover
+        )
+
+        # ====================================================
+        # CREATE ONE LIBRARY ENTRY
+        # ====================================================
+
+        book_id = add_book(
+            title=series_title,
+
+            author=series_author,
+
+            # Old epub_path column is still NOT NULL.
+            epub_path=str(
+                destination_folder
+            ),
+
+            file_path=str(
+                destination_folder
+            ),
+
+            file_format="cbz",
+
+            category=category,
+
+            cover_path=cover_path,
+
+            page_count=total_pages,
+        )
+
+        if not book_id:
+
+            raise DuplicateBookError(
+                (
+                    "This comic series is already "
                     "in your library."
                 )
+            )
+
+        # ====================================================
+        # CREATE CHAPTER DATABASE RECORDS
+        # ====================================================
+
+        for index, chapter in enumerate(
+            copied_chapters
+        ):
+
+            add_comic_chapter(
+                book_id=book_id,
+
+                chapter_index=index,
+
+                title=chapter[
+                    "title"
+                ],
+
+                file_path=chapter[
+                    "file_path"
+                ],
+
+                page_count=chapter[
+                    "page_count"
+                ],
             )
 
     except Exception:
 
         # ====================================================
-        # CLEAN FAILED COVER
+        # REMOVE DATABASE ENTRY
+        # ====================================================
+
+        if book_id:
+
+            try:
+                delete_book(
+                    book_id
+                )
+
+            except Exception:
+                pass
+
+        # ====================================================
+        # REMOVE COVER
         # ====================================================
 
         if cover_path:
@@ -346,29 +1032,60 @@ def import_epub(
                     pass
 
         # ====================================================
-        # CLEAN FAILED EPUB
+        # REMOVE COPIED SERIES FOLDER
         # ====================================================
 
-        if copied_epub:
+        if destination_folder.exists():
 
-            if destination_path.exists():
-
-                try:
-                    destination_path.unlink()
-
-                except OSError:
-                    pass
+            shutil.rmtree(
+                destination_folder,
+                ignore_errors=True,
+            )
 
         raise
 
-    metadata[
-        "epub_path"
-    ] = str(
-        destination_path
+    # ========================================================
+    # SUCCESS
+    # ========================================================
+
+    return {
+        "title": series_title,
+
+        "author": series_author,
+
+        "file_format": "cbz",
+
+        "category": category,
+
+        "chapter_count": len(
+            chapter_data
+        ),
+
+        "page_count": total_pages,
+
+        "file_path": str(
+            destination_folder
+        ),
+
+        "cover_path": cover_path,
+
+        "book_id": book_id,
+    }
+
+
+# ============================================================
+# OLD EPUB COMPATIBILITY
+# ============================================================
+
+def import_epub(
+    source_path,
+):
+    """
+    Compatibility wrapper used by older
+    parts of Litenova.
+    """
+
+    return import_book(
+        source_path,
+        category="light_novel",
     )
-
-    metadata[
-        "cover_path"
-    ] = cover_path
-
-    return metadata

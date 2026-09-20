@@ -1,0 +1,253 @@
+QMainWindow,
+QWidget {
+    background-color: #15171e;
+    color: #eeeeee;
+}
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+
+QWidget#sidebar {
+    background-color: #1b1d25;
+    border-right: 1px solid #2d303c;
+}
+
+/* =========================================================
+   LABELS
+   ========================================================= */
+
+QLabel {
+    color: #eeeeee;
+}
+
+QLabel#pageTitle {
+    font-size: 30px;
+    font-weight: 600;
+    color: #eeeeee;
+}
+
+QLabel#readerBookTitle {
+    font-size: 20px;
+    font-weight: 600;
+    color: #eeeeee;
+}
+
+QLabel#sectionTitle {
+    font-size: 16px;
+    font-weight: 600;
+    color: #eeeeee;
+}
+
+QLabel#secondaryLabel {
+    color: #9da0ad;
+    font-size: 13px;
+}
+
+QLabel#bookTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f1f1f5;
+}
+
+QLabel#bookAuthor {
+    color: #9da0ad;
+    font-size: 12px;
+}
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+QPushButton {
+    background-color: #292c38;
+    color: #eeeeee;
+
+    border: 1px solid #3c3f4d;
+    border-radius: 7px;
+
+    padding: 8px 12px;
+}
+
+QPushButton:hover {
+    background-color: #363947;
+    border-color: #8f88ff;
+}
+
+QPushButton:pressed {
+    background-color: #414554;
+}
+
+QPushButton:disabled {
+    background-color: #20222b;
+    color: #666a78;
+    border-color: #2d303b;
+}
+
+QPushButton#primaryButton {
+    background-color: #625ca8;
+    color: #ffffff;
+
+    border-color: #756fc0;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: #716abb;
+}
+
+QPushButton#dangerButton {
+    background-color: #2d303d;
+    color: #d0d1da;
+
+    border-color: #414451;
+}
+
+QPushButton#dangerButton:hover {
+    background-color: #633a42;
+    color: #ffffff;
+
+    border-color: #8b4d57;
+}
+
+/* =========================================================
+   INPUTS
+   ========================================================= */
+
+QLineEdit,
+QSpinBox,
+QComboBox {
+    background-color: #292c38;
+    color: #eeeeee;
+
+    border: 1px solid #3c3f4d;
+    border-radius: 7px;
+
+    padding: 7px;
+}
+
+QLineEdit:focus,
+QSpinBox:focus,
+QComboBox:focus {
+    border-color: #8f88ff;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #292c38;
+    color: #eeeeee;
+
+    selection-background-color: #514d73;
+}
+
+/* =========================================================
+   BOOK CARDS
+   ========================================================= */
+
+QFrame#bookCard {
+    background-color: #242632;
+
+    border: 1px solid #343746;
+    border-radius: 12px;
+}
+
+QFrame#bookCard:hover {
+    background-color: #292b38;
+
+    border-color: #8f88ff;
+}
+
+QLabel#bookCover {
+    background-color: #313442;
+
+    color: #aaa4ff;
+
+    border-radius: 8px;
+
+    font-size: 22px;
+    font-weight: 700;
+}
+
+/* =========================================================
+   TABLE OF CONTENTS
+   ========================================================= */
+
+QFrame#tocPanel {
+    background-color: #1b1d25;
+
+    border: 1px solid #343746;
+    border-radius: 8px;
+}
+
+QListWidget {
+    background-color: #1b1d25;
+    color: #d9dae3;
+
+    border: none;
+
+    padding: 4px;
+}
+
+QListWidget::item {
+    padding: 10px 8px;
+
+    border-radius: 5px;
+}
+
+QListWidget::item:hover {
+    background-color: #292c38;
+}
+
+QListWidget::item:selected {
+    background-color: #514d73;
+    color: #ffffff;
+}
+
+/* =========================================================
+   SCROLL AREAS
+   ========================================================= */
+
+QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+QScrollBar:vertical {
+    background-color: #15171e;
+
+    width: 10px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #55586a;
+
+    min-height: 30px;
+
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #6d7084;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* =========================================================
+   DIALOGS
+   ========================================================= */
+
+QMessageBox {
+    background-color: #1f212b;
+}
+
+QMessageBox QLabel {
+    color: #eeeeee;
+}
+
+QToolTip {
+    background-color: #292c38;
+    color: #eeeeee;
+
+    border: 1px solid #484c5c;
+}

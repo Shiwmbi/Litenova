@@ -1,653 +1,531 @@
-from PySide6.QtCore import Signal
+"""Litenova's fixed-dark, two-column Settings page.
 
+Only implemented controls are interactive. Automatic app updates and hardware
+acceleration are intentionally not presented as functioning settings.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+from PySide6.QtCore import Qt, Signal, QSize, QTimer
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QFrame,
-    QFormLayout,
-    QSpinBox,
-    QComboBox,
-    QPushButton,
-    QAbstractSpinBox,
-    QApplication,
+    QApplication, QCheckBox, QComboBox, QFileDialog, QFrame,
+    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea,
+    QSlider, QVBoxLayout, QWidget, QStackedWidget,
 )
 
+from app.pages.appearance_page import AppearancePage
+from app.services.icon_service import ui_icon
+from app.services.path_service import get_data_dir, resource_path
 from app.services.settings_service import (
-    get_reader_font_size,
-    set_reader_font_size,
-    get_reader_theme,
-    set_reader_theme,
+    DEFAULT_FONT_SIZE, get_reader_font_size, set_reader_font_size, get_setting,
+    set_setting,
+)
+from app.services.settings_data_service import (
+    application_settings, configure_logging, create_backup, log_directory,
+    reset_data, restore_backup, set_startup_enabled, startup_enabled,
 )
 
-from app.services.theme_service import (
-    apply_theme,
+FONT_OPTIONS = ("Georgia", "Noto Serif", "Times New Roman", "Arial", "Verdana")
+
+COMIC_READING_MODES = (
+    ("Automatic (Manga / Manhwa)", "auto"),
+    ("Paged (left to right)", "paged_ltr"),
+    ("Paged (right to left)", "paged_rtl"),
+    ("Paged (vertical)", "paged_vertical"),
+    ("Long strip", "long_strip"),
+    ("Long strip with gaps", "long_strip_gaps"),
 )
+
+
+def row_label(title, description=""):
+    box = QWidget()
+    layout = QVBoxLayout(box)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(4)
+    name = QLabel(title)
+    name.setObjectName("settingName")
+    layout.addWidget(name)
+    if description:
+        detail = QLabel(description)
+        detail.setObjectName("settingDetail")
+        detail.setWordWrap(True)
+        layout.addWidget(detail)
+    return box
+
+
+class PillSwitch(QCheckBox):
+    """Custom toggle without any detached child or native checkmark window."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(52, 31)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def paintEvent(self, _event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#595b91" if self.isChecked() else "#363a4a"))
+        painter.drawRoundedRect(0, 2, 52, 27, 14, 14)
+        painter.setBrush(QColor("#cecdff" if self.isChecked() else "#a9aec3"))
+        painter.drawEllipse(28 if self.isChecked() else 4, 5, 21, 21)
+
+
+class SettingsCard(QFrame):
+    def __init__(self, icon_name, title, subtitle, parent=None):
+        super().__init__(parent)
+        self.setObjectName("settingsCard")
+        self.items = []
+        self.layout_ = QVBoxLayout(self)
+        self.layout_.setContentsMargins(20, 18, 20, 19)
+        self.layout_.setSpacing(13)
+        header = QHBoxLayout()
+        symbol = QLabel()
+        symbol.setPixmap(ui_icon(icon_name).pixmap(QSize(27, 27)))
+        symbol.setFixedSize(30, 30)
+        header.addWidget(symbol, 0, Qt.AlignTop)
+        captions = QVBoxLayout()
+        captions.setSpacing(2)
+        heading = QLabel(title)
+        heading.setObjectName("settingsCardTitle")
+        captions.addWidget(heading)
+        note = QLabel(subtitle)
+        note.setWordWrap(True)
+        note.setObjectName("settingDetail")
+        captions.addWidget(note)
+        header.addLayout(captions, 1)
+        self.layout_.addLayout(header)
+        self.layout_.addSpacing(5)
+
+    def add_row(self, title, description, control):
+        widget = QWidget(self)
+        row = QHBoxLayout(widget)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(15)
+        row.addWidget(row_label(title, description), 1)
+        row.addWidget(control, 0, Qt.AlignVCenter)
+        self.layout_.addWidget(widget)
+        self.items.append((title.casefold() + " " + description.casefold(), widget))
+        return widget
+
+    def add_full(self, text, control):
+        self.layout_.addWidget(control)
+        self.items.append((text.casefold(), control))
+        return control
+
+    def filter(self, query):
+        count = 0
+        for words, widget in self.items:
+            match = not query or query in words
+            widget.setVisible(match)
+            count += int(match)
+        self.setVisible(count > 0)
+        return count
 
 
 class SettingsPage(QWidget):
-
     settings_changed = Signal()
 
     def __init__(self):
         super().__init__()
-
+        self.ui_settings = application_settings()
+        self._loading = False
+        configure_logging()
+        # Avoid re-rendering an EPUB for every font-slider pixel movement.
+        self._reader_update_timer = QTimer(self)
+        self._reader_update_timer.setSingleShot(True)
+        self._reader_update_timer.setInterval(180)
+        self._reader_update_timer.timeout.connect(self.settings_changed.emit)
         self.build_ui()
         self.load_settings()
 
-    # ========================================================
-    # BUILD USER INTERFACE
-    # ========================================================
+    def combo(self, choices, width=210):
+        widget = QComboBox(self)
+        widget.setFixedWidth(width)
+        widget.setFixedHeight(37)
+        for text, value in choices:
+            widget.addItem(text, value)
+        return widget
+
+    def action(self, text, callback, danger=False):
+        button = QPushButton(text, self)
+        button.setObjectName("settingsDanger" if danger else "settingsAction")
+        button.setCursor(Qt.PointingHandCursor)
+        button.clicked.connect(callback)
+        return button
 
     def build_ui(self):
+        self.setObjectName("settingsPage")
+        self.page_stack = QStackedWidget(self)
+        self.main_panel = QWidget(self.page_stack)
+        self.main_panel.setObjectName("settingsMainPanel")
+        host = QVBoxLayout(self)
+        host.setContentsMargins(0, 0, 0, 0)
+        host.setSpacing(0)
+        host.addWidget(self.page_stack)
+        outer = QVBoxLayout(self.main_panel)
+        outer.setContentsMargins(24, 19, 22, 16)
+        outer.setSpacing(14)
+        title_row = QHBoxLayout()
+        heading = QVBoxLayout()
+        title = QLabel("Settings")
+        title.setObjectName("settingsHeading")
+        heading.addWidget(title)
+        description = QLabel("Customize Litenova to your liking")
+        description.setObjectName("settingsDescription")
+        heading.addWidget(description)
+        title_row.addLayout(heading)
+        title_row.addStretch()
+        self.search = QLineEdit(self)
+        self.search.setPlaceholderText("Search settings...")
+        self.search.setObjectName("settingsSearch")
+        self.search.setFixedSize(300, 40)
+        self.search.addAction(ui_icon("search"), QLineEdit.LeadingPosition)
+        self.search.textChanged.connect(self.filter_settings)
+        title_row.addWidget(self.search, 0, Qt.AlignTop)
+        outer.addLayout(title_row)
 
-        self.main_layout = QVBoxLayout(
-            self
-        )
+        scroller = QScrollArea(self)
+        scroller.setObjectName("settingsScroller")
+        scroller.setWidgetResizable(True)
+        scroller.setFrameShape(QFrame.NoFrame)
+        scroller.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # Independent vertical columns: a taller card on the right must NOT
+        # push the next card down on the left (or vice versa).
+        content = QWidget()
+        columns = QHBoxLayout(content)
+        columns.setContentsMargins(0, 0, 0, 6)
+        columns.setSpacing(13)
 
-        self.main_layout.setContentsMargins(
-            30,
-            30,
-            30,
-            30,
-        )
+        left_column = QVBoxLayout()
+        left_column.setContentsMargins(0, 0, 0, 0)
+        left_column.setSpacing(13)
 
-        self.main_layout.setSpacing(
-            20
-        )
+        right_column = QVBoxLayout()
+        right_column.setContentsMargins(0, 0, 0, 0)
+        right_column.setSpacing(13)
 
-        # ====================================================
-        # PAGE TITLE
-        # ====================================================
+        self.general = SettingsCard("settings", "General", "Application behavior and system preferences")
+        self.reader_card = SettingsCard("library", "Reader", "Font, text, and reading behavior")
+        self.data_card = SettingsCard("folder", "Data", "Manage your library data and storage")
+        self.appearance = SettingsCard("settings", "Appearance", "Litenova's original dark interface")
+        self.advanced = SettingsCard("settings", "Advanced", "Diagnostics and troubleshooting")
 
-        self.title = QLabel(
-            "Settings"
-        )
+        left_column.addWidget(self.general)
+        left_column.addWidget(self.data_card)
+        left_column.addStretch(1)
 
-        self.description = QLabel(
-            "Customize your Litenova reading experience."
-        )
+        right_column.addWidget(self.reader_card)
+        right_column.addWidget(self.appearance)
+        right_column.addWidget(self.advanced)
+        right_column.addStretch(1)
 
-        # ====================================================
-        # READING PREFERENCES CARD
-        # ====================================================
+        columns.addLayout(left_column, 1)
+        columns.addLayout(right_column, 1)
+        scroller.setWidget(content)
+        outer.addWidget(scroller, 1)
 
-        self.reading_card = QFrame()
+        # GENERAL: no nonfunctional language/update selectors.
+        language = QLabel("English")
+        language.setObjectName("settingsStatic")
+        self.general.add_row("App language", "Currently supported language", language)
+        self.launch_toggle = PillSwitch(self)
+        if sys.platform != "win32":
+            self.launch_toggle.setEnabled(False)
+            self.launch_toggle.setToolTip("Windows only")
+        self.general.add_row("Launch at system startup", "Open Litenova when signing into Windows", self.launch_toggle)
+        self.launch_toggle.toggled.connect(self.change_startup)
+        self.open_to = self.combo([
+            ("Library", "library"), ("History", "history"),
+            ("Browse", "browse"), ("Settings", "settings"),
+        ], 170)
+        self.general.add_row("Open to", "Page displayed when Litenova starts", self.open_to)
+        self.open_to.currentIndexChanged.connect(self.change_start_page)
 
-        self.reading_card.setMaximumWidth(
-            650
-        )
-
-        card_layout = QVBoxLayout(
-            self.reading_card
-        )
-
-        card_layout.setContentsMargins(
-            20,
-            20,
-            20,
-            20,
-        )
-
-        card_layout.setSpacing(
-            15
-        )
-
-        self.card_title = QLabel(
-            "Reading Preferences"
-        )
-
-        self.card_description = QLabel(
-            "Changes are saved automatically."
-        )
-
-        # ====================================================
-        # FORM
-        # ====================================================
-
-        form_layout = QFormLayout()
-
-        form_layout.setSpacing(
-            20
-        )
-
-        # ====================================================
-        # FONT SIZE CONTROLS
-        # ====================================================
-
+        # READER: font and size are applied to the existing EPUB reader.
+        self.font_combo = self.combo([(name, name) for name in FONT_OPTIONS], 180)
+        self.reader_card.add_row("Default font", "EPUB reader font family", self.font_combo)
+        self.font_combo.currentIndexChanged.connect(self.change_font)
         font_controls = QWidget()
+        frow = QHBoxLayout(font_controls)
+        frow.setContentsMargins(0, 0, 0, 0)
+        frow.setSpacing(8)
+        self.font_slider = QSlider(Qt.Horizontal)
+        self.font_slider.setRange(12, 32)
+        self.font_slider.setFixedWidth(145)
+        self.font_size_label = QLabel("17 pt")
+        self.font_size_label.setFixedWidth(38)
+        frow.addWidget(self.font_slider)
+        frow.addWidget(self.font_size_label)
+        self.reader_card.add_row("Font size", "Default size for EPUB text", font_controls)
+        self.font_slider.valueChanged.connect(self.change_font_size)
+        self.reading_mode_combo = self.combo(COMIC_READING_MODES, 250)
+        self.reader_card.add_row(
+            "Default comic reading mode",
+            "Manga / Manhwa (CBZ). EPUB remains vertical scroll.",
+            self.reading_mode_combo,
+        )
+        self.reading_mode_combo.currentIndexChanged.connect(self.change_reading_mode)
+        self.progress_toggle = PillSwitch(self)
+        self.reader_card.add_row("Show progress bar", "Show EPUB reading progress below the text", self.progress_toggle)
+        self.progress_toggle.toggled.connect(self.change_progress)
+        self.reader_card.add_full("reader defaults", self.action("Restore reader defaults", self.reset_reader))
 
-        font_layout = QHBoxLayout(
-            font_controls
+        # APPEARANCE: custom dark presets live on their own full-width page.
+        theme = QLabel("Litenova Dark · Customizable")
+        theme.setObjectName("settingsStatic")
+        self.appearance.add_row("Interface theme", "Choose Mercury, Neptune or Aurora (all dark)", theme)
+        self.appearance.add_full(
+            "appearance theme color presets live preview",
+            self.action("Customize appearance  →", self.show_appearance),
         )
 
-        font_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
+        # DATA: export, verified restore and reset all create a recovery backup.
+        self.data_path = QLineEdit(self)
+        self.data_path.setReadOnly(True)
+        self.data_path.setObjectName("settingsPath")
+        self.data_path.setMinimumWidth(170)
+        self.data_path.setMaximumWidth(290)
+        self.data_card.add_row("App data location", "Books, covers, database and history", self.data_path)
+        self.data_card.add_full("open data folder", self.action("Open data folder", self.open_data_folder))
+        self.data_card.add_row("Export data", "Back up books and reading records as a ZIP",
+                               self.action("Export...", self.export_data))
+        self.data_card.add_row("Import data", "Replace data from a Litenova ZIP backup",
+                               self.action("Import...", self.import_data))
+        self.data_card.add_row("Reset app data", "Erase books, categories, history and preferences",
+                               self.action("Reset...", self.reset_app, danger=True))
 
-        font_layout.setSpacing(
-            8
-        )
+        # ADVANCED: these controls perform real local diagnostics.
+        self.verbose_toggle = PillSwitch(self)
+        self.advanced.add_row("Verbose logging", "Write detailed Litenova diagnostics", self.verbose_toggle)
+        self.verbose_toggle.toggled.connect(self.change_verbose)
+        self.advanced.add_full("view debug information", self.action("Show debug information", self.show_debug))
+        self.advanced.add_full("open log folder", self.action("Open log folder", self.open_log_folder))
 
-        # ----------------------------------------------------
-        # DECREASE FONT BUTTON
-        # ----------------------------------------------------
+        self.cards = (self.general, self.reader_card, self.appearance,
+                      self.data_card, self.advanced)
+        self.apply_local_style()
+        self.page_stack.addWidget(self.main_panel)
+        self.appearance_editor = AppearancePage(self.page_stack)
+        self.page_stack.addWidget(self.appearance_editor)
+        self.appearance_editor.back_requested.connect(self.show_main_settings)
+        self.appearance_editor.changed.connect(self.settings_changed.emit)
+        self.page_stack.setCurrentWidget(self.main_panel)
 
-        self.decrease_font_button = QPushButton(
-            "A−"
-        )
+    def show_appearance(self):
+        self.appearance_editor.load_settings()
+        self.page_stack.setCurrentWidget(self.appearance_editor)
 
-        self.decrease_font_button.setFixedSize(
-            55,
-            40,
-        )
+    def show_main_settings(self):
+        self.page_stack.setCurrentWidget(self.main_panel)
 
-        self.decrease_font_button.clicked.connect(
-            self.decrease_font_size
-        )
-
-        # ----------------------------------------------------
-        # FONT SIZE INPUT
-        # ----------------------------------------------------
-
-        self.font_size_input = QSpinBox()
-
-        self.font_size_input.setRange(
-            12,
-            32,
-        )
-
-        self.font_size_input.setSuffix(
-            " px"
-        )
-
-        self.font_size_input.setFixedSize(
-            110,
-            40,
-        )
-
-        # Remove the built-in ▲ and ▼ buttons.
-        self.font_size_input.setButtonSymbols(
-            QAbstractSpinBox.NoButtons
-        )
-
-        self.font_size_input.valueChanged.connect(
-            self.font_size_changed
-        )
-
-        # ----------------------------------------------------
-        # INCREASE FONT BUTTON
-        # ----------------------------------------------------
-
-        self.increase_font_button = QPushButton(
-            "A+"
-        )
-
-        self.increase_font_button.setFixedSize(
-            55,
-            40,
-        )
-
-        self.increase_font_button.clicked.connect(
-            self.increase_font_size
-        )
-
-        # ----------------------------------------------------
-        # ADD FONT CONTROLS
-        # ----------------------------------------------------
-
-        font_layout.addWidget(
-            self.decrease_font_button
-        )
-
-        font_layout.addWidget(
-            self.font_size_input
-        )
-
-        font_layout.addWidget(
-            self.increase_font_button
-        )
-
-        font_layout.addStretch()
-
-        self.font_label = QLabel(
-            "Reader font size"
-        )
-
-        # ====================================================
-        # READING MODE
-        # ====================================================
-
-        self.theme_input = QComboBox()
-
-        self.theme_input.addItem(
-            "Dark",
-            "dark",
-        )
-
-        self.theme_input.addItem(
-            "Light",
-            "light",
-        )
-
-        self.theme_input.setFixedSize(
-            185,
-            40,
-        )
-
-        self.theme_input.currentIndexChanged.connect(
-            self.theme_changed
-        )
-
-        self.theme_label = QLabel(
-            "Reading mode"
-        )
-
-        # ====================================================
-        # ADD FORM ROWS
-        # ====================================================
-
-        form_layout.addRow(
-            self.font_label,
-            font_controls,
-        )
-
-        form_layout.addRow(
-            self.theme_label,
-            self.theme_input,
-        )
-
-        # ====================================================
-        # ADD CARD CONTENT
-        # ====================================================
-
-        card_layout.addWidget(
-            self.card_title
-        )
-
-        card_layout.addWidget(
-            self.card_description
-        )
-
-        card_layout.addSpacing(
-            10
-        )
-
-        card_layout.addLayout(
-            form_layout
-        )
-
-        # ====================================================
-        # ADD PAGE CONTENT
-        # ====================================================
-
-        self.main_layout.addWidget(
-            self.title
-        )
-
-        self.main_layout.addWidget(
-            self.description
-        )
-
-        self.main_layout.addWidget(
-            self.reading_card
-        )
-
-        self.main_layout.addStretch()
-
-    # ========================================================
-    # LOAD SAVED SETTINGS
-    # ========================================================
+    def apply_local_style(self):
+        arrow = resource_path("resources/icons/dropdown_arrow.png")
+        image = f'image: url("{arrow.resolve().as_posix()}");' if arrow.is_file() else ""
+        self.setStyleSheet('''
+            QWidget#settingsPage { background: #15171e; color: #e9ebfb; }
+            QScrollArea#settingsScroller { background: transparent; border: none; }
+            QScrollArea#settingsScroller > QWidget > QWidget { background: transparent; }
+            QLabel { background: transparent; border: none; }
+            QLabel#settingsHeading { color: #f2f0ff; font-size: 29px; font-weight: 700; }
+            QLabel#settingsDescription { color: #c4c7dd; font-size: 13px; }
+            QFrame#settingsCard { background: #191b22; border: 1px solid #323744;
+                                  border-radius: 11px; }
+            QLabel#settingsCardTitle { font-weight: 700; color: #e7e8ff; font-size: 17px; }
+            QLabel#settingName { color: #e6e7f4; font-size: 13px; }
+            QLabel#settingDetail { color: #adb2c8; font-size: 11px; }
+            QLabel#settingsStatic { color: #c7c8ed; font-size: 12px; }
+            QLineEdit#settingsSearch, QLineEdit#settingsPath, QComboBox {
+                background: #14161c; border: 1px solid #41465a; border-radius: 8px;
+                color: #eff0ff; font-size: 12px; padding: 5px 10px;
+            }
+            QLineEdit#settingsSearch:focus { border-color: #9795d6; }
+            QComboBox { padding-right: 29px; }
+            QComboBox::drop-down, QComboBox::drop-down:hover, QComboBox::drop-down:on {
+                subcontrol-origin: padding; subcontrol-position: top right;
+                width: 26px; background: transparent; border: none; }
+            QComboBox::down-arrow:on { top: 0; left: 0; }
+            QComboBox QAbstractItemView { background: #191b22; color: #e7e8ff;
+                selection-background-color: #454969; outline: none; }
+            QSlider::groove:horizontal { background: #4b506e; height: 6px; border-radius: 3px; }
+            QSlider::handle:horizontal { background: #c5c4fa; width: 15px;
+                                        margin: -5px 0; border-radius: 7px; }
+            QPushButton#settingsAction, QPushButton#settingsDanger {
+                background: #30344d; color: #e9e8ff; border: 1px solid #6a6f9b;
+                padding: 8px 14px; border-radius: 7px; font-size: 12px; }
+            QPushButton#settingsAction:hover { background: #404567; }
+            QPushButton#settingsDanger { border-color: #b04a53; color: #ffbbbb;
+                                        background: #292025; }
+            QPushButton#settingsDanger:hover { background: #4a282e; }
+        ''' + ('QComboBox::down-arrow { ' + image + ' width: 13px; height: 13px; }'
+               if image else ''))
 
     def load_settings(self):
-
-        font_size = (
-            get_reader_font_size()
-        )
-
-        theme = (
-            get_reader_theme()
-        )
-
-        # Prevent signals while restoring values.
-        self.font_size_input.blockSignals(
-            True
-        )
-
-        self.theme_input.blockSignals(
-            True
-        )
-
-        # ----------------------------------------------------
-        # RESTORE FONT SIZE
-        # ----------------------------------------------------
-
-        self.font_size_input.setValue(
-            font_size
-        )
-
-        # ----------------------------------------------------
-        # RESTORE THEME
-        # ----------------------------------------------------
-
-        theme_index = (
-            self.theme_input.findData(
-                theme
-            )
-        )
-
-        if theme_index >= 0:
-
-            self.theme_input.setCurrentIndex(
-                theme_index
-            )
-
-        self.font_size_input.blockSignals(
-            False
-        )
-
-        self.theme_input.blockSignals(
-            False
-        )
-
-        # Apply local Settings page colors.
-        self.apply_local_theme(
-            theme
-        )
-
-    # ========================================================
-    # SETTINGS PAGE LOCAL THEME
-    # ========================================================
-
-    def apply_local_theme(
-        self,
-        theme,
-    ):
-
-        if theme == "light":
-
-            page_background = "#f4f4f6"
-            card_background = "#ffffff"
-
-            primary_text = "#202126"
-            secondary_text = "#666975"
-
-            input_background = "#f1f1f4"
-            input_border = "#d2d3d8"
-
-            button_background = "#eeeeF2"
-            button_hover = "#e1e1e7"
-
-            accent = "#5b55b5"
-
-        else:
-
-            page_background = "#15171e"
-            card_background = "#1f212b"
-
-            primary_text = "#eeeeee"
-            secondary_text = "#9da0ad"
-
-            input_background = "#292c38"
-            input_border = "#3c3f4d"
-
-            button_background = "#292c38"
-            button_hover = "#363947"
-
-            accent = "#8f88ff"
-
-        # ----------------------------------------------------
-        # PAGE
-        # ----------------------------------------------------
-
-        self.setStyleSheet(
-            f"""
-            SettingsPage {{
-                background-color: {page_background};
-            }}
-
-            QLabel {{
-                color: {primary_text};
-            }}
-
-            QFrame {{
-                background-color: {card_background};
-
-                border: 1px solid {input_border};
-
-                border-radius: 12px;
-            }}
-
-            QPushButton {{
-                background-color: {button_background};
-
-                color: {primary_text};
-
-                border: 1px solid {input_border};
-
-                border-radius: 7px;
-
-                font-size: 15px;
-
-                font-weight: 600;
-            }}
-
-            QPushButton:hover {{
-                background-color: {button_hover};
-
-                border-color: {accent};
-            }}
-
-            QSpinBox {{
-                background-color: {input_background};
-
-                color: {primary_text};
-
-                border: 1px solid {input_border};
-
-                border-radius: 7px;
-
-                padding-left: 12px;
-
-                font-size: 14px;
-            }}
-
-            QComboBox {{
-                background-color: {input_background};
-
-                color: {primary_text};
-
-                border: 1px solid {input_border};
-
-                border-radius: 7px;
-
-                padding: 7px 12px;
-
-                font-size: 14px;
-            }}
-
-            QComboBox QAbstractItemView {{
-                background-color: {card_background};
-
-                color: {primary_text};
-
-                selection-background-color: {accent};
-            }}
-            """
-        )
-
-        # ----------------------------------------------------
-        # TITLE
-        # ----------------------------------------------------
-
-        self.title.setStyleSheet(
-            f"""
-            font-size: 30px;
-
-            font-weight: 600;
-
-            color: {primary_text};
-            """
-        )
-
-        # ----------------------------------------------------
-        # DESCRIPTION
-        # ----------------------------------------------------
-
-        self.description.setStyleSheet(
-            f"""
-            font-size: 13px;
-
-            color: {secondary_text};
-            """
-        )
-
-        # ----------------------------------------------------
-        # CARD TITLE
-        # ----------------------------------------------------
-
-        self.card_title.setStyleSheet(
-            f"""
-            font-size: 18px;
-
-            font-weight: 600;
-
-            color: {primary_text};
-
-            border: none;
-            """
-        )
-
-        # ----------------------------------------------------
-        # CARD DESCRIPTION
-        # ----------------------------------------------------
-
-        self.card_description.setStyleSheet(
-            f"""
-            font-size: 12px;
-
-            color: {secondary_text};
-
-            border: none;
-            """
-        )
-
-        # ----------------------------------------------------
-        # FORM LABELS
-        # ----------------------------------------------------
-
-        self.font_label.setStyleSheet(
-            f"""
-            color: {primary_text};
-
-            border: none;
-            """
-        )
-
-        self.theme_label.setStyleSheet(
-            f"""
-            color: {primary_text};
-
-            border: none;
-            """
-        )
-
-    # ========================================================
-    # DECREASE FONT SIZE
-    # ========================================================
-
-    def decrease_font_size(self):
-
-        current_size = (
-            self.font_size_input.value()
-        )
-
-        if current_size > 12:
-
-            self.font_size_input.setValue(
-                current_size - 1
-            )
-
-    # ========================================================
-    # INCREASE FONT SIZE
-    # ========================================================
-
-    def increase_font_size(self):
-
-        current_size = (
-            self.font_size_input.value()
-        )
-
-        if current_size < 32:
-
-            self.font_size_input.setValue(
-                current_size + 1
-            )
-
-    # ========================================================
-    # FONT SIZE CHANGED
-    # ========================================================
-
-    def font_size_changed(
-        self,
-        font_size,
-    ):
-
-        set_reader_font_size(
-            font_size
-        )
-
-        self.settings_changed.emit()
-
-    # ========================================================
-    # THEME CHANGED
-    # ========================================================
-
-    def theme_changed(
-        self,
-        index,
-    ):
-
-        theme = (
-            self.theme_input.itemData(
-                index
-            )
-        )
-
-        if theme is None:
+        self._loading = True
+        try:
+            start = str(self.ui_settings.value("general/start_page", "library"))
+            index = self.open_to.findData(start)
+            self.open_to.setCurrentIndex(index if index >= 0 else 0)
+            self.launch_toggle.setChecked(startup_enabled())
+            font = str(get_setting("reader_font_family", FONT_OPTIONS[0]))
+            index = self.font_combo.findData(font)
+            self.font_combo.setCurrentIndex(index if index >= 0 else 0)
+            self.font_slider.setValue(get_reader_font_size())
+            mode = str(get_setting("comic_reading_mode", "auto") or "auto")
+            mode_index = self.reading_mode_combo.findData(mode)
+            self.reading_mode_combo.setCurrentIndex(mode_index if mode_index >= 0 else 0)
+            self.font_size_label.setText(f"{self.font_slider.value()} pt")
+            self.progress_toggle.setChecked(str(get_setting(
+                "reader_show_progress_bar", "True")).lower() in ("true", "1", "yes"))
+            self.verbose_toggle.setChecked(self.ui_settings.value(
+                "advanced/verbose", False, type=bool))
+            self.data_path.setText(str(get_data_dir()))
+        finally:
+            self._loading = False
+
+    def filter_settings(self, text):
+        query = text.strip().casefold()
+        for card in self.cards:
+            card.filter(query)
+
+    def change_startup(self, state):
+        if self._loading:
             return
+        try:
+            set_startup_enabled(state)
+        except Exception as error:
+            QMessageBox.warning(self, "Startup setting", str(error))
+            self._loading = True
+            self.launch_toggle.setChecked(startup_enabled())
+            self._loading = False
 
-        # Save theme to SQLite.
-        set_reader_theme(
-            theme
-        )
+    def change_start_page(self, _index):
+        if not self._loading:
+            self.ui_settings.setValue("general/start_page", self.open_to.currentData())
 
-        # ----------------------------------------------------
-        # APPLY GLOBAL APPLICATION QSS IMMEDIATELY
-        # ----------------------------------------------------
+    def change_font(self, _index):
+        if not self._loading:
+            set_setting("reader_font_family", self.font_combo.currentData())
+            self.settings_changed.emit()
 
-        app = QApplication.instance()
+    def change_font_size(self, size):
+        self.font_size_label.setText(f"{size} pt")
+        if not self._loading:
+            set_reader_font_size(size)
+            self._reader_update_timer.start()
 
-        if app is not None:
+    def change_reading_mode(self, _index):
+        if not self._loading:
+            selected = self.reading_mode_combo.currentData()
+            if selected is not None:
+                set_setting("comic_reading_mode", selected)
+                self.settings_changed.emit()
 
-            apply_theme(
-                app
-            )
+    def change_progress(self, enabled):
+        if not self._loading:
+            set_setting("reader_show_progress_bar", bool(enabled))
+            self.settings_changed.emit()
 
-        # ----------------------------------------------------
-        # APPLY SETTINGS-SPECIFIC COLORS
-        # ----------------------------------------------------
-
-        self.apply_local_theme(
-            theme
-        )
-
-        # ----------------------------------------------------
-        # NOTIFY READER / MAIN WINDOW
-        # ----------------------------------------------------
-
+    def reset_reader(self):
+        self._loading = True
+        self.font_combo.setCurrentIndex(0)
+        self.font_slider.setValue(DEFAULT_FONT_SIZE)
+        self.font_size_label.setText(f"{DEFAULT_FONT_SIZE} pt")
+        self.progress_toggle.setChecked(True)
+        self.reading_mode_combo.setCurrentIndex(0)
+        self._loading = False
+        set_setting("reader_font_family", FONT_OPTIONS[0])
+        set_reader_font_size(DEFAULT_FONT_SIZE)
+        set_setting("reader_show_progress_bar", True)
+        set_setting("comic_reading_mode", "auto")
+        self._reader_update_timer.stop()
         self.settings_changed.emit()
+
+    def change_verbose(self, enabled):
+        if not self._loading:
+            self.ui_settings.setValue("advanced/verbose", enabled)
+            configure_logging()
+
+    @staticmethod
+    def _open_path(path):
+        if sys.platform == "win32":
+            os.startfile(str(path))
+        else:
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+
+    def open_data_folder(self):
+        self._open_path(get_data_dir())
+
+    def open_log_folder(self):
+        self._open_path(log_directory())
+
+    def show_debug(self):
+        details = (f"Python: {sys.version.split()[0]}\n"
+                   f"Executable: {sys.executable}\n"
+                   f"Data folder: {get_data_dir()}\n"
+                   f"Log file: {configure_logging()}\n"
+                   f"Mode: {'Packaged' if getattr(sys, 'frozen', False) else 'Development'}")
+        QMessageBox.information(self, "Litenova diagnostics", details)
+
+    def export_data(self):
+        destination, _ = QFileDialog.getSaveFileName(
+            self, "Export Litenova data", str(Path.home() / "Litenova_backup.zip"),
+            "Litenova backup (*.zip)")
+        if not destination:
+            return
+        try:
+            output = create_backup(destination)
+        except Exception as error:
+            QMessageBox.critical(self, "Export failed", str(error))
+        else:
+            QMessageBox.information(self, "Backup created", f"Saved backup to:\n{output}")
+
+    def import_data(self):
+        filename, _ = QFileDialog.getOpenFileName(
+            self, "Select Litenova backup", str(Path.home()), "Litenova backup (*.zip)")
+        if not filename:
+            return
+        answer = QMessageBox.warning(self, "Replace application data?",
+            "Importing replaces the current Library, history and settings.\n\n"
+            "Litenova will first save a recovery backup, then close. "
+            "You will need to reopen it. Continue?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if answer != QMessageBox.Yes:
+            return
+        try:
+            recovery, previous = restore_backup(filename)
+        except Exception as error:
+            QMessageBox.critical(self, "Import failed", f"No imported data was activated.\n\n{error}")
+            return
+        QMessageBox.information(self, "Import complete",
+            f"Recovery backup:\n{recovery}\n\nPrevious data:\n{previous}\n\n"
+            "Close and reopen Litenova to use the restored Library.")
+        QApplication.instance().quit()
+
+    def reset_app(self):
+        answer = QMessageBox.warning(self, "Reset ALL Litenova data?",
+            "This will clear ALL imported books, custom categories, reading history "
+            "and settings. Original source files outside Litenova are not deleted.\n\n"
+            "A recovery backup will be saved first. Continue?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if answer != QMessageBox.Yes:
+            return
+        from PySide6.QtWidgets import QInputDialog
+        phrase, confirmed = QInputDialog.getText(self, "Confirm reset",
+                                                "Type RESET to erase Litenova's data:")
+        if not confirmed or phrase != "RESET":
+            return
+        try:
+            backup, previous = reset_data()
+        except Exception as error:
+            QMessageBox.critical(self, "Reset failed", str(error))
+            return
+        QMessageBox.information(self, "Reset complete",
+            f"Recovery backup:\n{backup}\n\nPrevious data:\n{previous}\n\n"
+            "Close and reopen Litenova to start with an empty Library.")
+        QApplication.instance().quit()

@@ -251,3 +251,87 @@ QToolTip {
 
     border: 1px solid #484c5c;
 }
+
+/* LITENOVA_CLEAN_DROPDOWN_ARROWS_V1 */
+
+/* Remove the separate arrow box from dark-theme dropdowns. */
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+
+    width: 30px;
+
+    background: transparent;
+
+    border: none;
+    border-radius: 0;
+
+    padding: 0;
+    margin: 0;
+}
+
+/* Remove the arrow box's hover and pressed appearance. */
+
+QComboBox::drop-down:hover,
+QComboBox::drop-down:on {
+    background: transparent;
+    border: none;
+}
+
+/* Keep the arrow in its original position. */
+
+QComboBox::down-arrow:on {
+    top: 0;
+    left: 0;
+}
+
+/* ============================================================
+   LITENOVA - REMOVE HIGHLIGHTED TEXT BACKGROUNDS
+   ============================================================ */
+
+/* Message boxes */
+
+QMessageBox QLabel,
+QMessageBox QLabel#qt_msgbox_label,
+QMessageBox QLabel#qt_msgbox_informativelabel {
+    background: transparent;
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Confirmation dialogs and other application dialogs */
+
+QDialog QLabel {
+    background: transparent;
+    background-color: transparent;
+    border: none;
+}
+
+/* Keep dialog backgrounds consistent with Litenova */
+
+QMessageBox,
+QDialog {
+    background-color: #1f212b;
+    color: #eeeeee;
+}
+
+/* Keep dialog buttons styled normally */
+
+QMessageBox QPushButton,
+QDialog QPushButton {
+    color: #eeeeee;
+    background-color: #292c38;
+    border: 1px solid #3c3f4d;
+    border-radius: 7px;
+    padding: 8px 14px;
+    min-height: 28px;
+}
+
+QMessageBox QPushButton:hover,
+QDialog QPushButton:hover {
+    background-color: #363947;
+    border-color: #8f88ff;
+}

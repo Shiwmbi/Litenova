@@ -1,107 +1,116 @@
 import sys
 
+from pathlib import Path
+
 from PySide6.QtGui import QIcon
 
-from PySide6.QtWidgets import (
-    QApplication,
-)
+from PySide6.QtWidgets import QApplication
 
-from app.database.database import (
-    initialize_database,
-)
+from app.windows.main_window import MainWindow
 
-from app.services.path_service import (
-    resource_path,
-)
-
-from app.services.theme_service import (
-    apply_theme,
-)
-
-from app.windows.main_window import (
-    MainWindow,
-)
+from app.services.theme_service import apply_theme
 
 
-def main():
-    # ========================================================
-    # DATABASE
-    # ========================================================
+# ============================================================
+# LITENOVA APPLICATION ICON
+# ============================================================
 
-    initialize_database()
+def get_application_icon():
+    """
+    Load Litenova's original application icon.
 
-    # ========================================================
-    # APPLICATION
-    # ========================================================
+    Supports:
+    - Running from VS Code
+    - Running with python main.py
+    - Running a packaged application
+    """
 
-    app = QApplication(
-        sys.argv
-    )
+    if hasattr(sys, "_MEIPASS"):
 
-    app.setApplicationName(
-        "Litenova"
-    )
-
-    app.setApplicationDisplayName(
-        "Litenova"
-    )
-
-    app.setOrganizationName(
-        "Litenova"
-    )
-
-    # ========================================================
-    # APPLICATION ICON
-    # ========================================================
-
-    icon_path = resource_path(
-        "resources/icons/litenova.ico"
-    )
-
-    if icon_path.exists():
-
-        app_icon = QIcon(
-            str(icon_path)
-        )
-
-        app.setWindowIcon(
-            app_icon
-        )
+        base_path = Path(sys._MEIPASS)
 
     else:
 
-        app_icon = QIcon()
+        base_path = Path(__file__).resolve().parent
+
+    icon_path = (
+        base_path
+        / "resources"
+        / "icons"
+        / "litenova.ico"
+    )
+
+    if not icon_path.is_file():
+
+        print(
+            "Litenova icon not found:",
+            icon_path,
+        )
+
+        return QIcon()
+
+    return QIcon(str(icon_path))
+
+
+# ============================================================
+# START LITENOVA
+# ============================================================
+
+def main():
+
+    # Create the application.
+
+    app = QApplication(sys.argv)
+
+    app.setApplicationName("Litenova")
+
+    app.setOrganizationName("Litenova")
 
     # ========================================================
-    # THEME
+    # RESTORE ORIGINAL APPLICATION ICON
     # ========================================================
 
-    apply_theme(
-        app
+    litenova_icon = get_application_icon()
+
+    app.setWindowIcon(
+        litenova_icon
     )
 
     # ========================================================
-    # MAIN WINDOW
+    # APPLY SAVED THEME
+    # ========================================================
+
+    apply_theme(app)
+
+    # ========================================================
+    # CREATE MAIN WINDOW
     # ========================================================
 
     window = MainWindow()
 
-    if not app_icon.isNull():
+    window.setWindowTitle(
+        "Litenova"
+    )
 
-        window.setWindowIcon(
-            app_icon
-        )
+    # Restore the original icon in the window title bar.
+
+    window.setWindowIcon(
+        litenova_icon
+    )
+
+    # ========================================================
+    # SHOW APPLICATION
+    # ========================================================
 
     window.show()
 
-    # ========================================================
-    # RUN
-    # ========================================================
+    return app.exec()
 
-    sys.exit(
-        app.exec()
-    )
 
+# ============================================================
+# APPLICATION ENTRY POINT
+# ============================================================
 
 if __name__ == "__main__":
-    main()
+
+    sys.exit(main())
