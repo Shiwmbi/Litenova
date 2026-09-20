@@ -6,6 +6,8 @@ from PySide6.QtGui import QIcon
 
 from PySide6.QtWidgets import QApplication
 
+from app.database.database import initialize_database
+
 from app.windows.main_window import MainWindow
 
 from app.services.theme_service import apply_theme
@@ -75,6 +77,12 @@ def main():
     app.setWindowIcon(
         litenova_icon
     )
+
+    # ========================================================
+    # INITIALIZE DATABASE BEFORE LOADING THE THEME OR PAGES
+    # ========================================================
+
+    initialize_database()
 
     # ========================================================
     # APPLY SAVED THEME

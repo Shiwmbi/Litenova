@@ -17,7 +17,6 @@ from PySide6.QtCore import (
     QSize,
     QSettings,
     QFileInfo,
-    QEvent,
     QTimer,
 )
 
@@ -38,7 +37,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QToolButton,
     QLineEdit,
-    QComboBox,
     QCheckBox,
     QTableWidget,
     QTableWidgetItem,
@@ -56,12 +54,10 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QSplitter,
     QApplication,
-    QStyle,
 )
 
 from app.services.import_service import (
     import_book,
-    import_cbz_folder,
     DuplicateBookError,
 )
 

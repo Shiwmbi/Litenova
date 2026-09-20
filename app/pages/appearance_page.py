@@ -9,7 +9,7 @@ import uuid
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QFrame, QHBoxLayout, QInputDialog, QLabel,
+    QCheckBox, QFrame, QHBoxLayout, QInputDialog, QLabel,
     QMessageBox, QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 

@@ -19,15 +19,13 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal, QTimer, QSize, QEvent
 from PySide6.QtGui import QFont, QPixmap, QPainter, QTextCursor, QKeySequence, QShortcut, QImage, QTextDocument, QIcon
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QFrame, QLabel, QPushButton, QToolButton,
-    QVBoxLayout, QHBoxLayout, QScrollArea, QTextBrowser, QListWidget,
+    QWidget, QFrame, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QScrollArea, QTextBrowser, QListWidget,
     QComboBox, QSlider, QLineEdit, QCheckBox, QButtonGroup,
-    QMessageBox, QSizePolicy, QSplitter, QListWidgetItem,
+    QMessageBox, QSplitter, QListWidgetItem,
 )
 
 from app.services.epub_service import get_chapters
 from app.services.path_service import resource_path
-from app.services.icon_service import ui_icon
 from app.services.appearance_service import resolved_colors
 from app.services.progress_service import get_progress, save_progress
 from app.services.settings_service import (
