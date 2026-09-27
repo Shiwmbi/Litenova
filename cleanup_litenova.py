@@ -1,632 +1,1001 @@
 """
-LITENOVA PROJECT CLEANUP
+LITENOVA SAFE PROJECT CLEANER
 
-This script performs a conservative cleanup of the
-Litenova Python project.
+This script deliberately DOES NOT modify application source code.
 
-Features:
-    1. Finds unused Python imports.
-    2. Removes unused imports when requested.
-    3. Removes generated Python cache files.
-    4. Creates backups before changing source code.
-    5. Checks Python syntax after cleanup.
-    6. Restores source files if the cleanup fails.
+It removes only generated development artifacts such as:
 
-Protected:
-    - Imported EPUB and CBZ books
-    - Application database
-    - Book covers
-    - Resource icons
-    - Virtual environment
-    - Git repository
-    - Application settings
-    - Existing application functionality
+    __pycache__
+    *.pyc
+    *.pyo
+    .ruff_cache
+    .pytest_cache
+    build/
 
-Usage:
+It protects:
 
-    Preview cleanup:
+    app/
+    resources/
+    data/
+    .venv/
+    .git/
+    dist/
+    main.py
+    Litenova.spec
+    version_info.txt
+    requirements.txt
+    README.md
 
-        python cleanup_litenova.py
+Preview:
+    python cleanup_litenova.py
 
-    Apply cleanup:
+Clean safe generated files:
+    python cleanup_litenova.py --apply
 
-        python cleanup_litenova.py --apply
+Also remove dist/ so it can be rebuilt:
+    python cleanup_litenova.py --apply --dist
+
+Show old Litenova reset/import folders:
+    python cleanup_litenova.py --show-stale
+
+Delete old Litenova reset/import folders older than 24 hours:
+    CLOSE LITENOVA FIRST
+
+    python cleanup_litenova.py --apply --stale-data
 """
 
 import argparse
+import os
 import shutil
-import subprocess
 import sys
+import time
 
-from datetime import datetime
 from pathlib import Path
 
 
 # ============================================================
-# PROJECT PATHS
+# PROJECT
 # ============================================================
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-
-APP_FOLDER = PROJECT_ROOT / "app"
-
-BACKUP_ROOT = (
-    PROJECT_ROOT.parent
-    / "Litenova_cleanup_backups"
-)
+PROJECT_ROOT = Path(
+    __file__
+).resolve().parent
 
 
 # ============================================================
-# PROTECTED DIRECTORIES
+# PROTECTED ITEMS
 # ============================================================
 
-PROTECTED_DIRECTORIES = {
-    ".git",
+PROTECTED_TOP_LEVEL = {
+    "app",
+    "resources",
+    "data",
     ".venv",
     "venv",
-    "data",
-    "resources",
-    "build",
+    ".git",
     "dist",
-    "node_modules",
-    "Litenova_cleanup_backups",
+}
+
+
+IMPORTANT_FILES = {
+    "main.py",
+    "Litenova.spec",
+    "version_info.txt",
+    "requirements.txt",
+    "README.md",
+    ".gitignore",
+    "cleanup_litenova.py",
 }
 
 
 # ============================================================
-# CHECK RUFF
+# GENERATED DIRECTORIES
 # ============================================================
 
-def ruff_available():
+GENERATED_DIRECTORY_NAMES = {
+    "__pycache__",
+    ".ruff_cache",
+    ".pytest_cache",
+    ".mypy_cache",
+}
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ruff",
-            "--version",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+
+# ============================================================
+# GENERATED FILE EXTENSIONS
+# ============================================================
+
+GENERATED_FILE_EXTENSIONS = {
+    ".pyc",
+    ".pyo",
+}
+
+
+# ============================================================
+# LITENOVA TEMPORARY DATA FOLDERS
+# ============================================================
+
+LITENOVA_STALE_PREFIXES = (
+    ".litenova-before-reset-",
+    ".litenova-previous-",
+)
+
+
+LITENOVA_STAGE_PREFIX = (
+    ".litenova-stage-"
+)
+
+
+STALE_AGE_SECONDS = (
+    24
+    * 60
+    * 60
+)
+
+
+# ============================================================
+# SIZE HELPERS
+# ============================================================
+
+def file_size(
+    path,
+):
+
+    try:
+
+        return path.stat().st_size
+
+    except OSError:
+
+        return 0
+
+
+def folder_size(
+    folder,
+):
+
+    total = 0
+
+    try:
+
+        for root, dirs, files in os.walk(
+            folder
+        ):
+
+            for name in files:
+
+                path = (
+                    Path(root)
+                    / name
+                )
+
+                total += file_size(
+                    path
+                )
+
+    except OSError:
+
+        pass
+
+    return total
+
+
+def human_size(
+    size,
+):
+
+    size = float(
+        size
     )
 
-    return result.returncode == 0
+    for unit in (
+        "B",
+        "KB",
+        "MB",
+        "GB",
+        "TB",
+    ):
+
+        if size < 1024:
+
+            return (
+                f"{size:.1f} {unit}"
+            )
+
+        size /= 1024
+
+    return (
+        f"{size:.1f} PB"
+    )
 
 
 # ============================================================
-# FIND PYTHON SOURCE FILES
+# CHECK PROJECT ROOT
 # ============================================================
 
-def get_python_files():
+def validate_project():
 
-    if not APP_FOLDER.is_dir():
+    required = (
+        PROJECT_ROOT
+        / "main.py"
+    )
+
+    app = (
+        PROJECT_ROOT
+        / "app"
+    )
+
+    if not required.is_file():
 
         raise RuntimeError(
-            "Cannot find the app folder. "
-            "Place this script beside main.py."
+            "main.py was not found. "
+            "Place cleanup_litenova.py in "
+            "C:\\Projects\\Litenova."
         )
 
-    python_files = []
+    if not app.is_dir():
 
-    for path in APP_FOLDER.rglob("*.py"):
+        raise RuntimeError(
+            "The app folder was not found."
+        )
 
-        if any(
-            part in PROTECTED_DIRECTORIES
-            for part in path.relative_to(
-                PROJECT_ROOT
-            ).parts
+
+# ============================================================
+# WALK SAFE SOURCE LOCATIONS
+# ============================================================
+
+def safe_walk():
+
+    for root, dirs, files in os.walk(
+        PROJECT_ROOT
+    ):
+
+        root_path = Path(
+            root
+        )
+
+        if root_path == PROJECT_ROOT:
+
+            dirs[:] = [
+                directory
+                for directory in dirs
+                if directory
+                not in {
+                    ".venv",
+                    "venv",
+                    ".git",
+                    "data",
+                    "resources",
+                    "dist",
+                }
+            ]
+
+        else:
+
+            dirs[:] = [
+                directory
+                for directory in dirs
+                if directory
+                not in {
+                    ".venv",
+                    "venv",
+                    ".git",
+                    "data",
+                    "resources",
+                    "dist",
+                }
+            ]
+
+        yield (
+            root_path,
+            dirs,
+            files,
+        )
+
+
+# ============================================================
+# FIND GENERATED CACHE DIRECTORIES
+# ============================================================
+
+def find_cache_directories():
+
+    found = set()
+
+    for root, dirs, _files in safe_walk():
+
+        for name in list(
+            dirs
+        ):
+
+            if (
+                name
+                in GENERATED_DIRECTORY_NAMES
+            ):
+
+                found.add(
+                    root
+                    / name
+                )
+
+    return sorted(
+        found,
+        key=lambda path: str(
+            path
+        ).casefold(),
+    )
+
+
+# ============================================================
+# FIND GENERATED PYTHON FILES
+# ============================================================
+
+def find_compiled_files():
+
+    found = set()
+
+    for root, _dirs, files in safe_walk():
+
+        for name in files:
+
+            path = (
+                root
+                / name
+            )
+
+            if (
+                path.suffix.lower()
+                in GENERATED_FILE_EXTENSIONS
+            ):
+
+                found.add(
+                    path
+                )
+
+    return sorted(
+        found,
+        key=lambda path: str(
+            path
+        ).casefold(),
+    )
+
+
+# ============================================================
+# FIND BUILD DIRECTORY
+# ============================================================
+
+def find_build_directory():
+
+    build = (
+        PROJECT_ROOT
+        / "build"
+    )
+
+    if build.is_dir():
+
+        return build
+
+    return None
+
+
+# ============================================================
+# FIND DIST DIRECTORY
+# ============================================================
+
+def find_dist_directory():
+
+    dist = (
+        PROJECT_ROOT
+        / "dist"
+    )
+
+    if dist.is_dir():
+
+        return dist
+
+    return None
+
+
+# ============================================================
+# FIND OLD LITENOVA DATA COPIES
+# ============================================================
+
+def find_stale_data_directories():
+
+    found = []
+
+    now = (
+        time.time()
+    )
+
+    for item in PROJECT_ROOT.iterdir():
+
+        if not item.is_dir():
+
+            continue
+
+        is_old_data = any(
+            item.name.startswith(
+                prefix
+            )
+            for prefix
+            in LITENOVA_STALE_PREFIXES
+        )
+
+        is_stage = (
+            item.name.startswith(
+                LITENOVA_STAGE_PREFIX
+            )
+        )
+
+        if not (
+            is_old_data
+            or is_stage
         ):
 
             continue
 
-        # Package initialization files can intentionally
-        # expose imports to other Python modules.
-        #
-        # Do not automatically remove imports from them.
+        try:
 
-        if path.name == "__init__.py":
+            modified = (
+                item.stat().st_mtime
+            )
+
+        except OSError:
 
             continue
 
-        python_files.append(path)
-
-    return sorted(python_files)
-
-
-# ============================================================
-# FIND GENERATED PYTHON CACHE FOLDERS
-# ============================================================
-
-def get_cache_folders():
-
-    cache_folders = []
-
-    # Only inspect our own application code.
-    # Do not modify the virtual environment,
-    # imported books, or resource folders.
-
-    for path in APP_FOLDER.rglob("__pycache__"):
-
-        if path.is_dir():
-
-            cache_folders.append(path)
-
-    root_cache = (
-        PROJECT_ROOT
-        / "__pycache__"
-    )
-
-    if root_cache.is_dir():
-
-        cache_folders.append(
-            root_cache
+        age = (
+            now
+            - modified
         )
 
-    return cache_folders
+        # Stage directories could belong to an active import.
+        # Only consider them stale after 24 hours.
+
+        if (
+            is_stage
+            and age
+            < STALE_AGE_SECONDS
+        ):
+
+            continue
+
+        found.append(
+            (
+                item,
+                age,
+            )
+        )
+
+    found.sort(
+        key=lambda value: (
+            value[0].name.casefold()
+        )
+    )
+
+    return found
 
 
 # ============================================================
-# FIND COMPILED PYTHON FILES
+# COLLECT SAFE CLEANUP TARGETS
 # ============================================================
 
-def get_compiled_files():
+def collect_safe_targets(
+    include_dist=False,
+):
 
-    compiled_files = []
+    targets = []
 
-    for extension in (
-        "*.pyc",
-        "*.pyo",
-    ):
+    for directory in find_cache_directories():
 
-        for path in APP_FOLDER.rglob(extension):
+        targets.append(
+            (
+                "cache directory",
+                directory,
+                folder_size(
+                    directory
+                ),
+            )
+        )
 
-            if path.is_file():
+    for file in find_compiled_files():
 
-                compiled_files.append(path)
+        targets.append(
+            (
+                "compiled Python file",
+                file,
+                file_size(
+                    file
+                ),
+            )
+        )
 
-    return compiled_files
+    build = (
+        find_build_directory()
+    )
+
+    if build is not None:
+
+        targets.append(
+            (
+                "PyInstaller build",
+                build,
+                folder_size(
+                    build
+                ),
+            )
+        )
+
+    if include_dist:
+
+        dist = (
+            find_dist_directory()
+        )
+
+        if dist is not None:
+
+            targets.append(
+                (
+                    "PyInstaller dist",
+                    dist,
+                    folder_size(
+                        dist
+                    ),
+                )
+            )
+
+    return targets
 
 
 # ============================================================
-# CHECK PYTHON SYNTAX
+# DELETE SAFE TARGET
 # ============================================================
 
-def check_python_syntax(files):
+def remove_target(
+    path,
+):
+
+    if path.is_dir():
+
+        shutil.rmtree(
+            path
+        )
+
+    elif path.exists():
+
+        path.unlink()
+
+
+# ============================================================
+# PREVIEW
+# ============================================================
+
+def preview(
+    include_dist=False,
+):
+
+    targets = (
+        collect_safe_targets(
+            include_dist=include_dist
+        )
+    )
 
     print()
-    print("Checking Python syntax...")
+    print(
+        "=" * 66
+    )
 
-    errors = []
+    print(
+        "LITENOVA SAFE CLEANUP PREVIEW"
+    )
 
-    for path in files:
+    print(
+        "=" * 66
+    )
+
+    print()
+
+    if not targets:
+
+        print(
+            "No generated project files need cleaning."
+        )
+
+        return
+
+    total = 0
+
+    for kind, path, size in targets:
+
+        total += size
 
         try:
 
-            source = path.read_bytes()
-
-            compile(
-                source,
-                str(path),
-                "exec",
+            relative = (
+                path.relative_to(
+                    PROJECT_ROOT
+                )
             )
 
-        except Exception as error:
+        except ValueError:
 
-            errors.append(
-                (path, error)
-            )
-
-    if errors:
-
-        print()
+            relative = path
 
         print(
-            "Python syntax errors were detected:"
+            f"{kind:24} "
+            f"{human_size(size):>10}   "
+            f"{relative}"
         )
 
-        for path, error in errors:
-
-            print()
-            print(path)
-            print(error)
-
-        return False
+    print()
 
     print(
-        "Python syntax check passed."
+        "Space that can be reclaimed:"
     )
 
-    return True
-
-
-# ============================================================
-# CREATE SOURCE CODE BACKUP
-# ============================================================
-
-def create_backup(files):
-
-    timestamp = datetime.now().strftime(
-        "%Y%m%d_%H%M%S_%f"
-    )
-
-    backup_folder = (
-        BACKUP_ROOT
-        / timestamp
+    print(
+        human_size(
+            total
+        )
     )
 
     print()
-    print("Creating source code backup...")
-
-    for path in files:
-
-        relative_path = (
-            path.relative_to(
-                PROJECT_ROOT
-            )
-        )
-
-        destination = (
-            backup_folder
-            / relative_path
-        )
-
-        destination.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        shutil.copy2(
-            path,
-            destination,
-        )
 
     print(
-        f"Backup location: {backup_folder}"
+        "NO application source files will be changed."
     )
 
-    return backup_folder
+    print(
+        "NO books, covers, database files or settings "
+        "will be touched."
+    )
+
+    if not include_dist:
+
+        print(
+            "dist/ is protected and will not be deleted."
+        )
+
+    print()
+
+    print(
+        "Run this to clean the files above:"
+    )
+
+    print()
+
+    print(
+        "    python cleanup_litenova.py --apply"
+    )
+
+    print()
 
 
 # ============================================================
-# RESTORE SOURCE CODE BACKUP
+# APPLY SAFE CLEANUP
 # ============================================================
 
-def restore_backup(
-    backup_folder,
-    files,
+def apply_cleanup(
+    include_dist=False,
 ):
 
-    print()
-    print(
-        "Restoring original Python files..."
+    targets = (
+        collect_safe_targets(
+            include_dist=include_dist
+        )
     )
 
-    for path in files:
+    print()
+    print(
+        "=" * 66
+    )
 
-        relative_path = (
-            path.relative_to(
-                PROJECT_ROOT
+    print(
+        "LITENOVA SAFE CLEANUP"
+    )
+
+    print(
+        "=" * 66
+    )
+
+    total = 0
+
+    for kind, path, size in targets:
+
+        try:
+
+            remove_target(
+                path
             )
-        )
 
-        backup_file = (
-            backup_folder
-            / relative_path
-        )
+            total += size
 
-        if backup_file.is_file():
+            try:
 
-            shutil.copy2(
-                backup_file,
+                relative = (
+                    path.relative_to(
+                        PROJECT_ROOT
+                    )
+                )
+
+            except ValueError:
+
+                relative = path
+
+            print(
+                "Removed:",
+                relative,
+            )
+
+        except OSError as error:
+
+            print(
+                "Could not remove:",
                 path,
             )
 
-    print(
-        "Original Python files restored."
-    )
-
-
-# ============================================================
-# RUN RUFF
-# ============================================================
-
-def run_ruff(
-    files,
-    apply=False,
-):
-
-    command = [
-        sys.executable,
-        "-m",
-        "ruff",
-        "check",
-        "--select",
-        "F401",
-    ]
-
-    if apply:
-
-        command.append(
-            "--fix"
-        )
-
-    else:
-
-        command.append(
-            "--diff"
-        )
-
-    command.extend(
-        str(path)
-        for path in files
-    )
-
-    result = subprocess.run(
-        command,
-        check=False,
-    )
-
-    return result.returncode
-
-
-# ============================================================
-# REMOVE PYTHON CACHE FILES
-# ============================================================
-
-def remove_python_caches():
-
-    print()
-    print(
-        "Removing generated Python cache files..."
-    )
-
-    cache_folders = (
-        get_cache_folders()
-    )
-
-    removed_folders = 0
-
-    for folder in cache_folders:
-
-        if folder.is_dir():
-
-            shutil.rmtree(
-                folder
+            print(
+                " ",
+                error,
             )
 
-            removed_folders += 1
-
-    # Remove standalone compiled files that
-    # were not inside a __pycache__ folder.
-
-    compiled_files = (
-        get_compiled_files()
-    )
-
-    removed_files = 0
-
-    for path in compiled_files:
-
-        if path.is_file():
-
-            path.unlink()
-
-            removed_files += 1
+    print()
 
     print(
-        f"Removed {removed_folders} cache folders."
+        "Cleanup complete."
     )
 
     print(
-        f"Removed {removed_files} standalone "
-        "compiled Python files."
+        "Approximate space reclaimed:",
+        human_size(
+            total
+        ),
+    )
+
+    print()
+
+    print(
+        "Your application source code was not modified."
     )
 
 
 # ============================================================
-# PREVIEW CLEANUP
+# SHOW STALE DATA DIRECTORIES
 # ============================================================
 
-def preview_cleanup(files):
+def show_stale_data():
 
-    print()
-    print("=" * 55)
-    print("LITENOVA CLEANUP PREVIEW")
-    print("=" * 55)
-
-    print()
-    print(
-        f"Python files found: {len(files)}"
-    )
-
-    print(
-        "Cache folders found: "
-        f"{len(get_cache_folders())}"
-    )
-
-    print(
-        "Compiled files found: "
-        f"{len(get_compiled_files())}"
+    stale = (
+        find_stale_data_directories()
     )
 
     print()
     print(
-        "Checking for unused Python imports..."
-    )
-
-    print()
-
-    run_ruff(
-        files,
-        apply=False,
-    )
-
-    print()
-    print("=" * 55)
-
-    print(
-        "PREVIEW COMPLETE"
-    )
-
-    print()
-
-    print(
-        "No files have been modified."
-    )
-
-    print()
-
-    print(
-        "To apply the cleanup, run:"
+        "=" * 66
     )
 
     print(
-        "python cleanup_litenova.py --apply"
+        "OLD LITENOVA RESET / IMPORT FOLDERS"
     )
 
-    print("=" * 55)
+    print(
+        "=" * 66
+    )
 
-
-# ============================================================
-# APPLY CLEANUP
-# ============================================================
-
-def apply_cleanup(files):
-
-    print()
-    print("=" * 55)
-    print("LITENOVA CODE CLEANUP")
-    print("=" * 55)
-
-    # Check the existing files before changing them.
-
-    if not check_python_syntax(files):
+    if not stale:
 
         print()
+
         print(
-            "Cleanup cancelled because existing "
-            "Python syntax errors were detected."
+            "No old temporary data folders were found."
         )
 
         return
 
-    # Create a backup before modifying Python source.
+    total = 0
 
-    backup_folder = create_backup(
-        files
+    print()
+
+    for path, age in stale:
+
+        size = (
+            folder_size(
+                path
+            )
+        )
+
+        total += size
+
+        hours = (
+            age
+            / 3600
+        )
+
+        print(
+            f"{human_size(size):>10}  "
+            f"{hours:8.1f} hours old  "
+            f"{path.name}"
+        )
+
+    print()
+
+    print(
+        "Total:",
+        human_size(
+            total
+        ),
     )
 
     print()
+
     print(
-        "Removing unused Python imports..."
+        "These are NOT deleted by normal --apply cleanup."
     )
 
-    # F401 targets unused imports only.
-    #
-    # It does not remove functions, classes,
-    # application features, or unused variables.
-
-    result = run_ruff(
-        files,
-        apply=True,
+    print(
+        "Close Litenova first, then use:"
     )
 
-    if result != 0:
+    print()
 
-        restore_backup(
-            backup_folder,
-            files,
-        )
+    print(
+        "    python cleanup_litenova.py "
+        "--apply --stale-data"
+    )
 
-        print()
+    print()
+
+
+# ============================================================
+# CLEAN STALE DATA DIRECTORIES
+# ============================================================
+
+def clean_stale_data():
+
+    stale = (
+        find_stale_data_directories()
+    )
+
+    if not stale:
+
         print(
-            "Ruff reported a problem."
-        )
-
-        print(
-            "Source files have been restored."
+            "No stale Litenova data folders found."
         )
 
         return
 
-    # Verify that the modified Python code
-    # still has valid syntax.
+    print()
 
-    if not check_python_syntax(files):
+    print(
+        "WARNING:"
+    )
 
-        restore_backup(
-            backup_folder,
-            files,
-        )
+    print(
+        "Litenova must be CLOSED before deleting "
+        "old reset/import folders."
+    )
 
-        print()
+    print()
+
+    answer = input(
+        "Type CLEAN to continue: "
+    ).strip()
+
+    if answer != "CLEAN":
+
         print(
-            "Cleanup was unsuccessful."
-        )
-
-        print(
-            "Source files have been restored."
+            "Cancelled."
         )
 
         return
 
-    # Remove generated cache files only after
-    # source-code cleanup succeeds.
+    total = 0
 
-    try:
+    for path, _age in stale:
 
-        remove_python_caches()
-
-    except OSError as error:
-
-        print()
-        print(
-            "Could not remove every cache file:"
+        size = (
+            folder_size(
+                path
+            )
         )
 
-        print(error)
+        try:
+
+            shutil.rmtree(
+                path
+            )
+
+            total += size
+
+            print(
+                "Removed:",
+                path.name,
+            )
+
+        except OSError as error:
+
+            print(
+                "Could not remove:",
+                path.name,
+            )
+
+            print(
+                " ",
+                error,
+            )
+
+    print()
+
+    print(
+        "Approximate stale-data space reclaimed:",
+        human_size(
+            total
+        ),
+    )
+
+
+# ============================================================
+# PROJECT SIZE REPORT
+# ============================================================
+
+def size_report():
+
+    print()
+    print(
+        "=" * 66
+    )
+
+    print(
+        "LITENOVA PROJECT SIZE REPORT"
+    )
+
+    print(
+        "=" * 66
+    )
+
+    items = []
+
+    for item in PROJECT_ROOT.iterdir():
+
+        try:
+
+            if item.is_dir():
+
+                size = folder_size(
+                    item
+                )
+
+            else:
+
+                size = file_size(
+                    item
+                )
+
+        except OSError:
+
+            continue
+
+        items.append(
+            (
+                size,
+                item,
+            )
+        )
+
+    items.sort(
+        key=lambda value: value[0],
+        reverse=True,
+    )
+
+    print()
+
+    for size, item in items:
 
         print(
-            "Your cleaned Python source files "
-            "have been kept."
+            f"{human_size(size):>10}   "
+            f"{item.name}"
         )
 
     print()
-    print("=" * 55)
-
-    print(
-        "LITENOVA CLEANUP COMPLETE"
-    )
-
-    print()
-
-    print(
-        "Unused imports have been removed."
-    )
-
-    print(
-        "Generated Python caches have been cleaned."
-    )
-
-    print()
-
-    print(
-        "Your original Python files are backed up at:"
-    )
-
-    print(
-        backup_folder
-    )
-
-    print()
-
-    print(
-        "IMPORTANT: Run Litenova and test its features "
-        "before committing these changes."
-    )
-
-    print("=" * 55)
 
 
 # ============================================================
@@ -637,8 +1006,8 @@ def main():
 
     parser = argparse.ArgumentParser(
         description=(
-            "Conservative cleanup for "
-            "the Litenova Python project."
+            "Safely clean generated Litenova "
+            "development files."
         )
     )
 
@@ -646,78 +1015,98 @@ def main():
         "--apply",
         action="store_true",
         help=(
-            "Apply unused-import cleanup "
-            "and remove generated Python caches."
+            "Perform the safe cleanup."
         ),
     )
 
-    args = parser.parse_args()
+    parser.add_argument(
+        "--dist",
+        action="store_true",
+        help=(
+            "Also delete dist/. "
+            "Use this only when you intend to rebuild the EXE."
+        ),
+    )
 
-    if not (
-        PROJECT_ROOT / "main.py"
-    ).is_file():
+    parser.add_argument(
+        "--show-stale",
+        action="store_true",
+        help=(
+            "Show old reset/import folders and their sizes."
+        ),
+    )
 
-        print(
-            "ERROR: Place this script in the "
-            "main Litenova project folder."
-        )
+    parser.add_argument(
+        "--stale-data",
+        action="store_true",
+        help=(
+            "Delete old reset/import folders. "
+            "Litenova must be closed."
+        ),
+    )
 
-        return
+    parser.add_argument(
+        "--sizes",
+        action="store_true",
+        help=(
+            "Show project disk usage."
+        ),
+    )
 
-    if not ruff_available():
-
-        print(
-            "Ruff is not installed."
-        )
-
-        print()
-        print(
-            "Install it using:"
-        )
-
-        print(
-            "python -m pip install ruff"
-        )
-
-        return
+    args = (
+        parser.parse_args()
+    )
 
     try:
 
-        files = get_python_files()
+        validate_project()
 
-        if not files:
+    except RuntimeError as error:
+
+        print(
+            "ERROR:",
+            error,
+        )
+
+        sys.exit(
+            1
+        )
+
+    if args.sizes:
+
+        size_report()
+
+    if args.show_stale:
+
+        show_stale_data()
+
+    if args.stale_data:
+
+        if not args.apply:
 
             print(
-                "No Python source files were found."
+                "--stale-data requires --apply."
             )
 
             return
 
-        if args.apply:
+        clean_stale_data()
 
-            apply_cleanup(
-                files
-            )
+    if args.apply:
 
-        else:
-
-            preview_cleanup(
-                files
-            )
-
-    except Exception as error:
-
-        print()
-        print(
-            "Cleanup stopped:"
+        apply_cleanup(
+            include_dist=args.dist
         )
 
-        print(error)
+    elif not (
+        args.sizes
+        or args.show_stale
+    ):
 
+        preview(
+            include_dist=args.dist
+        )
 
-# ============================================================
-# START
-# ============================================================
 
 if __name__ == "__main__":
 

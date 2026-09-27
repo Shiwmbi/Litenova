@@ -3052,53 +3052,177 @@ class BrowsePage(QWidget):
         self.check_selected_paths(paths)
 
     # ========================================================
+    # DUPLICATE IMPORT CONFIRMATION
+    # ========================================================
+
+    def confirm_duplicate_import(
+        self,
+        item_name,
+        item_type="item",
+    ):
+        """
+        Ask whether an already-imported item should be imported
+        again as a separate Library entry.
+        """
+
+        answer = QMessageBox.question(
+            self,
+            "Already in Library",
+            (
+                f"{item_name} is already in your Library.\n\n"
+                f"Import another copy of this {item_type} anyway?\n\n"
+                "The existing Library item will not be overwritten. "
+                "The new copy will have its own reading progress."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        return (
+            answer
+            == QMessageBox.Yes
+        )
+
+    # ========================================================
     # IMPORT SELECTED CHAPTER FILES AS ONE SERIES
     # ========================================================
 
     def import_selected_as_series(self):
         """Explicitly group checked chapter files, without adding other files."""
+
         files = sorted(
-            (p for p in self.checked_files if supported_file(p)),
-            key=lambda p: natural_sort_key(p.name),
+            (
+                p
+                for p in self.checked_files
+                if supported_file(p)
+            ),
+            key=lambda p: natural_sort_key(
+                p.name
+            ),
         )
-        if (len(files) < 2 or len(files) != len(self.checked_files)
-                or len({p.parent for p in files}) != 1):
+
+        if (
+            len(files) < 2
+            or len(files)
+            != len(self.checked_files)
+            or len(
+                {
+                    p.parent
+                    for p in files
+                }
+            )
+            != 1
+        ):
             QMessageBox.information(
-                self, "Group chapters",
-                "Select at least two EPUB/CBZ chapter files in the same folder.\n"
-                "Alternatively, select their folder and click Import."
+                self,
+                "Group chapters",
+                (
+                    "Select at least two EPUB/CBZ chapter files "
+                    "in the same folder.\n"
+                    "Alternatively, select their folder and click Import."
+                ),
             )
             return
-        category = self.choose_comic_category()
+
+        category = (
+            self.choose_comic_category()
+        )
+
         if category is None:
             return
-        self.group_selected_button.setEnabled(False)
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+
+        self.group_selected_button.setEnabled(
+            False
+        )
+
+        QApplication.setOverrideCursor(
+            Qt.WaitCursor
+        )
+
         try:
-            # Stage only the explicitly checked files; their originals stay put.
-            with tempfile.TemporaryDirectory(prefix="litenova_selected_chapters_") as temp:
-                staged = Path(temp) / self.current_directory.name
+
+            with tempfile.TemporaryDirectory(
+                prefix="litenova_selected_chapters_"
+            ) as temp:
+
+                staged = (
+                    Path(temp)
+                    / self.current_directory.name
+                )
+
                 staged.mkdir()
+
                 for source in files:
-                    shutil.copy2(source, staged / source.name)
-                import_comic_chapter_folder(staged, category=category)
-        except DuplicateBookError:
-            QMessageBox.warning(
-                self, "Already Imported",
-                "A series with this title is already in your Library."
-            )
+
+                    shutil.copy2(
+                        source,
+                        staged
+                        / source.name,
+                    )
+
+                try:
+
+                    import_comic_chapter_folder(
+                        staged,
+                        category=category,
+                    )
+
+                except DuplicateBookError:
+
+                    QApplication.restoreOverrideCursor()
+
+                    import_again = (
+                        self.confirm_duplicate_import(
+                            self.current_directory.name,
+                            "series",
+                        )
+                    )
+
+                    QApplication.setOverrideCursor(
+                        Qt.WaitCursor
+                    )
+
+                    if not import_again:
+                        return
+
+                    import_comic_chapter_folder(
+                        staged,
+                        category=category,
+                        allow_duplicate=True,
+                    )
+
         except Exception as error:
-            QMessageBox.critical(self, "Group Chapters Failed", str(error))
-        else:
-            self.book_imported.emit()
-            self.clear_file_selection()
-            QMessageBox.information(
-                self, "Series Imported",
-                f"Imported {len(files)} chapters as one {category.title()} series.\n"
-                "Original files were kept."
+
+            QMessageBox.critical(
+                self,
+                "Group Chapters Failed",
+                str(error),
             )
+
+        else:
+
+            self.book_imported.emit()
+
+            self.clear_file_selection()
+
+            QMessageBox.information(
+                self,
+                "Series Imported",
+                (
+                    f"Imported {len(files)} chapters as one "
+                    f"{category.title()} series.\n"
+                    "Original files were kept."
+                ),
+            )
+
         finally:
+
             QApplication.restoreOverrideCursor()
+
+            self.group_selected_button.setEnabled(
+                True
+            )
+
             self.update_selection_status()
 
     # ========================================================
@@ -3134,70 +3258,259 @@ class BrowsePage(QWidget):
     # ========================================================
 
     def import_selected_files(self):
+
         targets = sorted(
-            (p for p in self.checked_files if supported_target(p)),
-            key=lambda p: natural_sort_key(p.name),
+            (
+                p
+                for p in self.checked_files
+                if supported_target(p)
+            ),
+            key=lambda p: natural_sort_key(
+                p.name
+            ),
         )
+
         if not targets:
-            QMessageBox.information(self, "Import", "Select EPUB/CBZ files or chapter folders.")
-            return
-        need_category = any(
-            p.is_dir() or p.suffix.lower() == ".cbz" for p in targets
-        )
-        category = self.choose_comic_category() if need_category else None
-        if need_category and category is None:
-            return
-        move_originals = self.move_files_checkbox.isChecked()
-        if move_originals:
-            answer = QMessageBox.question(
-                self, "Move original files?",
-                "Only successfully imported individual files will be moved.\n"
-                "Original chapter folders and their contents will be kept.\n\n"
-                "Continue?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+
+            QMessageBox.information(
+                self,
+                "Import",
+                "Select EPUB/CBZ files or chapter folders.",
             )
+
+            return
+
+        need_category = any(
+            (
+                p.is_dir()
+                or p.suffix.lower()
+                == ".cbz"
+            )
+            for p in targets
+        )
+
+        category = (
+            self.choose_comic_category()
+            if need_category
+            else None
+        )
+
+        if (
+            need_category
+            and category is None
+        ):
+            return
+
+        move_originals = (
+            self.move_files_checkbox.isChecked()
+        )
+
+        if move_originals:
+
+            answer = QMessageBox.question(
+                self,
+                "Move original files?",
+                (
+                    "Only successfully imported individual files "
+                    "will be moved.\n"
+                    "Original chapter folders and their contents "
+                    "will be kept.\n\n"
+                    "Continue?"
+                ),
+                QMessageBox.Yes
+                | QMessageBox.No,
+                QMessageBox.No,
+            )
+
             if answer != QMessageBox.Yes:
                 return
-        imported, duplicates, errors, warnings = 0, [], [], []
-        self.import_button.setEnabled(False)
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+
+        imported = 0
+        skipped_duplicates = []
+        errors = []
+        warnings = []
+
+        self.import_button.setEnabled(
+            False
+        )
+
+        QApplication.setOverrideCursor(
+            Qt.WaitCursor
+        )
+
         try:
+
             for path in targets:
+
+                result = None
+
                 try:
+
                     if path.is_dir():
-                        import_comic_chapter_folder(path, category=category)
-                        result = None
+
+                        result = (
+                            import_comic_chapter_folder(
+                                path,
+                                category=category,
+                            )
+                        )
+
                     else:
+
                         result = import_book(
                             str(path),
-                            category="light_novel" if path.suffix.lower() == ".epub"
-                            else category,
+                            category=(
+                                "light_novel"
+                                if path.suffix.lower()
+                                == ".epub"
+                                else category
+                            ),
                         )
-                    imported += 1
-                    if move_originals and path.is_file():
-                        self.remove_original_after_import(path, result, warnings)
+
                 except DuplicateBookError:
-                    duplicates.append(path.name)
+
+                    QApplication.restoreOverrideCursor()
+
+                    import_again = (
+                        self.confirm_duplicate_import(
+                            path.name,
+                            (
+                                "series"
+                                if path.is_dir()
+                                else "book"
+                            ),
+                        )
+                    )
+
+                    QApplication.setOverrideCursor(
+                        Qt.WaitCursor
+                    )
+
+                    if not import_again:
+
+                        skipped_duplicates.append(
+                            path.name
+                        )
+
+                        continue
+
+                    try:
+
+                        if path.is_dir():
+
+                            result = (
+                                import_comic_chapter_folder(
+                                    path,
+                                    category=category,
+                                    allow_duplicate=True,
+                                )
+                            )
+
+                        else:
+
+                            result = import_book(
+                                str(path),
+                                category=(
+                                    "light_novel"
+                                    if path.suffix.lower()
+                                    == ".epub"
+                                    else category
+                                ),
+                                allow_duplicate=True,
+                            )
+
+                    except Exception as error:
+
+                        errors.append(
+                            f"{path.name}: {error}"
+                        )
+
+                        continue
+
                 except Exception as error:
-                    errors.append(f"{path.name}: {error}")
+
+                    errors.append(
+                        f"{path.name}: {error}"
+                    )
+
+                    continue
+
+                imported += 1
+
+                if (
+                    move_originals
+                    and path.is_file()
+                ):
+
+                    self.remove_original_after_import(
+                        path,
+                        result,
+                        warnings,
+                    )
+
         finally:
+
             QApplication.restoreOverrideCursor()
-            self.import_button.setEnabled(True)
+
+            self.import_button.setEnabled(
+                True
+            )
+
         if imported:
+
             self.book_imported.emit()
+
         self.checked_files.clear()
+
         self.clear_preview()
+
         self.load_directory()
-        message = f"Imported {imported} item(s). Each selected folder is one series."
-        if duplicates:
-            message += f"\nAlready in Library: {len(duplicates)}"
+
+        message = (
+            f"Imported {imported} item(s). "
+            "Each selected folder is one series."
+        )
+
+        if skipped_duplicates:
+
+            message += (
+                f"\nSkipped existing item(s): "
+                f"{len(skipped_duplicates)}"
+            )
+
         if errors:
-            message += f"\nFailed: {len(errors)}\n" + "\n".join(errors[:8])
+
+            message += (
+                f"\nFailed: {len(errors)}\n"
+                + "\n".join(
+                    errors[:8]
+                )
+            )
+
         if warnings:
-            message += "\nOriginals kept: " + ", ".join(warnings[:8])
+
+            message += (
+                "\nOriginals kept: "
+                + ", ".join(
+                    warnings[:8]
+                )
+            )
+
         if errors:
-            QMessageBox.warning(self, "Import Results", message)
+
+            QMessageBox.warning(
+                self,
+                "Import Results",
+                message,
+            )
+
         else:
-            QMessageBox.information(self, "Import Results", message)
+
+            QMessageBox.information(
+                self,
+                "Import Results",
+                message,
+            )
 
     # ========================================================
     # REMOVE ORIGINAL AFTER IMPORT
@@ -3307,35 +3620,106 @@ class BrowsePage(QWidget):
     # ========================================================
 
     def import_comic_folder(self):
+
         folder = (
-            self.preview_path if self.preview_path is not None
-            and self.preview_path.is_dir() else self.current_directory
-        )
-        chapters = folder_chapters(folder)
-        if not chapters:
-            QMessageBox.information(
-                self, "Import chapter folder",
-                "The selected folder has no EPUB or CBZ chapter files directly inside it.\n"
-                "Double-click a subfolder to browse it, or select a folder with chapters."
+            self.preview_path
+            if (
+                self.preview_path
+                is not None
+                and self.preview_path.is_dir()
             )
+            else self.current_directory
+        )
+
+        chapters = folder_chapters(
+            folder
+        )
+
+        if not chapters:
+
+            QMessageBox.information(
+                self,
+                "Import chapter folder",
+                (
+                    "The selected folder has no EPUB or CBZ "
+                    "chapter files directly inside it.\n"
+                    "Double-click a subfolder to browse it, or "
+                    "select a folder with chapters."
+                ),
+            )
+
             return
-        category = self.choose_comic_category()
+
+        category = (
+            self.choose_comic_category()
+        )
+
         if category is None:
             return
+
         try:
-            import_comic_chapter_folder(folder, category=category)
+
+            import_comic_chapter_folder(
+                folder,
+                category=category,
+            )
+
         except DuplicateBookError:
-            QMessageBox.warning(self, "Already Imported", "This series is already in the Library.")
-            return
+
+            import_again = (
+                self.confirm_duplicate_import(
+                    folder.name,
+                    "series",
+                )
+            )
+
+            if not import_again:
+                return
+
+            try:
+
+                import_comic_chapter_folder(
+                    folder,
+                    category=category,
+                    allow_duplicate=True,
+                )
+
+            except Exception as error:
+
+                QMessageBox.critical(
+                    self,
+                    "Import Failed",
+                    str(error),
+                )
+
+                return
+
         except Exception as error:
-            QMessageBox.critical(self, "Import Failed", str(error))
+
+            QMessageBox.critical(
+                self,
+                "Import Failed",
+                str(error),
+            )
+
             return
+
         self.book_imported.emit()
+
         QMessageBox.information(
-            self, "Import Complete",
-            f"Imported {folder.name} as {category.title()} with {len(chapters)} chapters."
+            self,
+            "Import Complete",
+            (
+                f"Imported {folder.name} as "
+                f"{category.title()} with "
+                f"{len(chapters)} chapters."
+            ),
         )
-        self.checked_files.discard(folder)
+
+        self.checked_files.discard(
+            folder
+        )
+
         self.load_directory()
 
     # ========================================================

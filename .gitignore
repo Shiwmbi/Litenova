@@ -1,23 +1,90 @@
-# Python
+# ============================================================
+# PYTHON GENERATED FILES
+# ============================================================
+
 __pycache__/
 *.py[cod]
+*$py.class
 
-# Virtual environment
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+
+# ============================================================
+# VIRTUAL ENVIRONMENT
+# ============================================================
+
 .venv/
+venv/
 
-# Local application data
+
+# ============================================================
+# LITENOVA LOCAL USER DATA
+# ============================================================
+
+data/
+
 *.db
 *.db-journal
-*.epub
+*.db-wal
+*.db-shm
 
-# PyInstaller
+*.epub
+*.cbz
+
+
+# ============================================================
+# LITENOVA RESET / IMPORT TEMPORARY DATA
+# ============================================================
+
+.litenova-before-reset-*/
+.litenova-previous-*/
+.litenova-stage-*/
+
+Litenova_Recovery_Backups/
+
+
+# ============================================================
+# PYINSTALLER GENERATED OUTPUT
+# ============================================================
+
 build/
 dist/
-*.spec
 
-# VS Code
+# IMPORTANT:
+# Litenova.spec is intentionally NOT ignored.
+# It should be stored in Git so releases can be rebuilt.
+
+
+# ============================================================
+# IDE
+# ============================================================
+
 .vscode/
+.idea/
 
-# Logs/temp
+
+# ============================================================
+# LOGS / TEMPORARY FILES
+# ============================================================
+
 *.log
 *.tmp
+*.partial
+
+
+# ============================================================
+# OLD CLEANUP ARCHIVES
+# ============================================================
+
+Litenova_cleanup_backups/
+Litenova_Development_Archive/
+
+
+# ============================================================
+# WINDOWS
+# ============================================================
+
+Thumbs.db
+Desktop.ini

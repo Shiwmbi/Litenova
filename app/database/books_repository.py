@@ -381,6 +381,55 @@ def get_book_by_file_path(
     return book
 
 
+def get_book_by_library_identity(
+    title,
+    author,
+    file_format,
+    category,
+):
+    """
+    Return an existing Library item that represents the same
+    logical book/series.
+
+    The stored file path is intentionally NOT part of this
+    comparison. That lets Litenova detect a duplicate even when
+    the source file was renamed outside the app.
+    """
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM books
+        WHERE
+            TRIM(title) = TRIM(?)
+                COLLATE NOCASE
+            AND TRIM(COALESCE(author, '')) = TRIM(COALESCE(?, ''))
+                COLLATE NOCASE
+            AND TRIM(COALESCE(file_format, '')) = TRIM(COALESCE(?, ''))
+                COLLATE NOCASE
+            AND TRIM(COALESCE(category, '')) = TRIM(COALESCE(?, ''))
+                COLLATE NOCASE
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        (
+            title,
+            author,
+            file_format,
+            category,
+        ),
+    )
+
+    book = cursor.fetchone()
+
+    connection.close()
+
+    return book
+
+
 # ============================================================
 # OLD EPUB LOOKUP
 # ============================================================

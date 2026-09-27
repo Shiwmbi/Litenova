@@ -25,6 +25,7 @@ from app.database.books_repository import (
     add_comic_chapter,
     delete_book,
     get_book_by_file_path,
+    get_book_by_library_identity,
 )
 
 
@@ -136,8 +137,11 @@ def create_destination_path(
     source_path,
 ):
     """
-    Create a safe destination for a single
-    EPUB or CBZ file.
+    Create a unique internal destination for one EPUB/CBZ.
+
+    Duplicate detection is handled separately using Library
+    metadata. A filename collision by itself does not mean that
+    two books are the same book.
     """
 
     destination = (
@@ -145,38 +149,80 @@ def create_destination_path(
         / source_path.name
     )
 
-    # No collision.
-    if not destination.exists():
-        return destination
-
-    # Check whether this destination is already
-    # registered in the database.
-    existing_book = (
-        get_book_by_file_path(
+    if (
+        not destination.exists()
+        and not get_book_by_file_path(
             str(destination)
         )
-    )
+    ):
+        return destination
 
-    if existing_book:
-        raise DuplicateBookError(
-            (
-                "This book is already "
-                "in your library."
+    counter = 2
+
+    while True:
+
+        candidate = (
+            BOOKS_DIR
+            / (
+                f"{source_path.stem}_"
+                f"{counter}"
+                f"{source_path.suffix.lower()}"
             )
         )
 
-    # File exists on disk but is not registered.
-    # Generate a unique filename instead.
-    unique_name = (
-        f"{source_path.stem}_"
-        f"{uuid.uuid4().hex[:8]}"
-        f"{source_path.suffix.lower()}"
+        if (
+            not candidate.exists()
+            and not get_book_by_file_path(
+                str(candidate)
+            )
+        ):
+            return candidate
+
+        counter += 1
+
+
+# ============================================================
+# CREATE DESTINATION FOR ONE SERIES
+# ============================================================
+
+def create_series_destination(
+    safe_folder_name,
+):
+    """
+    Return an unused internal folder for a Manga/Manhwa series.
+    """
+
+    destination = (
+        BOOKS_DIR
+        / safe_folder_name
     )
 
-    return (
-        BOOKS_DIR
-        / unique_name
-    )
+    if (
+        not destination.exists()
+        and not get_book_by_file_path(
+            str(destination)
+        )
+    ):
+        return destination
+
+    counter = 2
+
+    while True:
+
+        candidate = (
+            BOOKS_DIR
+            / f"{safe_folder_name}_{counter}"
+        )
+
+        if (
+            not candidate.exists()
+            and not get_book_by_file_path(
+                str(candidate)
+            )
+        ):
+            return candidate
+
+        counter += 1
 
 
 # ============================================================
@@ -394,6 +440,7 @@ def prepare_cbz(
 def import_book(
     source_path,
     category=None,
+    allow_duplicate=False,
 ):
     """
     Import one EPUB or one CBZ.
@@ -468,6 +515,38 @@ def import_book(
             (
                 "Litenova currently supports "
                 "EPUB and CBZ files only."
+            )
+        )
+
+    # ========================================================
+    # DUPLICATE LIBRARY ITEM
+    # ========================================================
+
+    existing_book = (
+        get_book_by_library_identity(
+            title=book_data[
+                "title"
+            ],
+            author=book_data[
+                "author"
+            ],
+            file_format=book_data[
+                "file_format"
+            ],
+            category=book_data[
+                "category"
+            ],
+        )
+    )
+
+    if (
+        existing_book
+        and not allow_duplicate
+    ):
+        raise DuplicateBookError(
+            (
+                "This item is already "
+                "in your Library."
             )
         )
 
@@ -659,6 +738,7 @@ def import_book(
 def import_cbz_folder(
     folder_path,
     category,
+    allow_duplicate=False,
 ):
     """
     Import a folder where each CBZ file
@@ -766,42 +846,9 @@ def import_cbz_folder(
             "Comic"
         )
 
-    destination_folder = (
-        BOOKS_DIR
-        / safe_folder_name
-    )
-
-    # ========================================================
-    # DUPLICATE SERIES
-    # ========================================================
-
-    if destination_folder.exists():
-
-        existing = (
-            get_book_by_file_path(
-                str(
-                    destination_folder
-                )
-            )
-        )
-
-        if existing:
-
-            raise DuplicateBookError(
-                (
-                    "This Manga/Manhwa series "
-                    "is already in your library."
-                )
-            )
-
-        destination_folder = (
-            BOOKS_DIR
-            / (
-                safe_folder_name
-                + "_"
-                + uuid.uuid4().hex[:8]
-            )
-        )
+    # The actual duplicate decision is made after chapter
+    # metadata is read, because the author is part of the
+    # Library identity check.
 
     # ========================================================
     # VALIDATE EVERY CHAPTER BEFORE COPYING
@@ -876,8 +923,38 @@ def import_cbz_folder(
         )
 
     # ========================================================
+    # DUPLICATE LIBRARY SERIES
+    # ========================================================
+
+    existing_series = (
+        get_book_by_library_identity(
+            title=series_title,
+            author=series_author,
+            file_format="cbz",
+            category=category,
+        )
+    )
+
+    if (
+        existing_series
+        and not allow_duplicate
+    ):
+        raise DuplicateBookError(
+            (
+                "This Manga/Manhwa series "
+                "is already in your Library."
+            )
+        )
+
+    # ========================================================
     # CREATE DESTINATION FOLDER
     # ========================================================
+
+    destination_folder = (
+        create_series_destination(
+            safe_folder_name
+        )
+    )
 
     destination_folder.mkdir(
         parents=True,
@@ -1079,6 +1156,7 @@ def import_cbz_folder(
 
 def import_epub(
     source_path,
+    allow_duplicate=False,
 ):
     """
     Compatibility wrapper used by older
@@ -1088,4 +1166,5 @@ def import_epub(
     return import_book(
         source_path,
         category="light_novel",
+        allow_duplicate=allow_duplicate,
     )
