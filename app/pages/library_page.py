@@ -561,6 +561,34 @@ class LibraryPage(QWidget):
             self.new_category_button
         )
 
+        self.delete_category_button = QPushButton(
+            "Delete Category"
+        )
+
+        self.delete_category_button.setObjectName(
+            "libraryDeleteCategory"
+        )
+
+        self.delete_category_button.setFixedHeight(
+            43
+        )
+
+        self.delete_category_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        self.delete_category_button.setToolTip(
+            "Delete the selected custom category"
+        )
+
+        self.delete_category_button.clicked.connect(
+            self.delete_selected_category
+        )
+
+        header.addWidget(
+            self.delete_category_button
+        )
+
         root.addLayout(
             header
         )
@@ -918,12 +946,6 @@ class LibraryPage(QWidget):
             )
         )
 
-        self.show_read_box = (
-            self.toggle_checkbox(
-                "Show «Read» button",
-                "Show quick action button on covers",
-            )
-        )
 
         self.show_progress_box.setChecked(
             self.setting_bool(
@@ -932,28 +954,16 @@ class LibraryPage(QWidget):
             )
         )
 
-        self.show_read_box.setChecked(
-            self.setting_bool(
-                "library_show_read",
-                True,
-            )
-        )
 
         self.show_progress_box.toggled.connect(
             self.display_options_changed
         )
 
-        self.show_read_box.toggled.connect(
-            self.display_options_changed
-        )
 
         side.addWidget(
             self.show_progress_box
         )
 
-        side.addWidget(
-            self.show_read_box
-        )
 
         # ====================================================
         # SORT
@@ -1119,49 +1129,6 @@ class LibraryPage(QWidget):
             1,
         )
 
-        # ====================================================
-        # FOOTER
-        # ====================================================
-
-        footer = QHBoxLayout()
-
-        self.status_label = QLabel(
-            "0 books"
-        )
-
-        self.status_label.setObjectName(
-            "libraryFooterLabel"
-        )
-
-        footer.addWidget(
-            self.status_label
-        )
-
-        footer.addStretch()
-
-        self.scan_button = QPushButton(
-            "Scan another folder"
-        )
-
-        self.scan_button.setObjectName(
-            "libraryFooterButton"
-        )
-
-        self.scan_button.setCursor(
-            Qt.PointingHandCursor
-        )
-
-        self.scan_button.clicked.connect(
-            self.open_browse
-        )
-
-        footer.addWidget(
-            self.scan_button
-        )
-
-        root.addLayout(
-            footer
-        )
 
         # ====================================================
         # INITIAL DISPLAY STATE
@@ -2207,10 +2174,6 @@ class LibraryPage(QWidget):
             self.show_progress_box.isChecked(),
         )
 
-        self.preferences.setValue(
-            "library_show_read",
-            self.show_read_box.isChecked(),
-        )
 
         self.load_books()
 
@@ -2491,7 +2454,6 @@ class LibraryPage(QWidget):
                 for book in books
             ),
             bool(self.show_progress_box.isChecked()),
-            bool(self.show_read_box.isChecked()),
             self.grid_slider.value(),
         )
         if (
@@ -2541,9 +2503,6 @@ class LibraryPage(QWidget):
             f"{'book' if count == 1 else 'books'}"
         )
 
-        self.status_label.setText(
-            count_text
-        )
 
         self.side_count.setText(
             count_text
@@ -2723,9 +2682,6 @@ class LibraryPage(QWidget):
                 ),
                 show_progress=(
                     self.show_progress_box.isChecked()
-                ),
-                show_read_button=(
-                    self.show_read_box.isChecked()
                 ),
                 parent=self.books_container,
                 original_cover=covers.get(
@@ -3148,6 +3104,22 @@ class LibraryPage(QWidget):
             QPushButton#libraryAddFolder:hover {
                 background: #41456b;
             }
+
+            QPushButton#libraryDeleteCategory {
+                background: #201a1e;
+                color: #e9b9bf;
+                border: 1px solid #68404a;
+                border-radius: 11px;
+                padding: 0 15px;
+                font-size: 13px;
+            }
+
+            QPushButton#libraryDeleteCategory:hover {
+                background: #342329;
+                border-color: #965563;
+                color: #ffd6db;
+            }
+
 
             /* Keep the existing search bar appearance. */
 

@@ -3,37 +3,55 @@ import sys
 from pathlib import Path
 
 from PySide6.QtGui import QIcon
-
 from PySide6.QtWidgets import QApplication
 
 from app.database.database import initialize_database
-
 from app.windows.main_window import MainWindow
-
 from app.services.theme_service import apply_theme
 
 
 # ============================================================
-# LITENOVA APPLICATION ICON
+# APPLICATION INFORMATION
+# ============================================================
+
+APP_NAME = "Litenova"
+
+APP_VERSION = "3.0.0"
+
+ORGANIZATION_NAME = "Litenova"
+
+
+# ============================================================
+# APPLICATION ICON
 # ============================================================
 
 def get_application_icon():
     """
-    Load Litenova's original application icon.
+    Return the Litenova application icon.
 
     Supports:
-    - Running from VS Code
-    - Running with python main.py
-    - Running a packaged application
+
+    - python main.py
+    - development mode
+    - PyInstaller one-file executable
     """
 
-    if hasattr(sys, "_MEIPASS"):
+    if hasattr(
+        sys,
+        "_MEIPASS",
+    ):
 
-        base_path = Path(sys._MEIPASS)
+        base_path = Path(
+            sys._MEIPASS
+        )
 
     else:
 
-        base_path = Path(__file__).resolve().parent
+        base_path = (
+            Path(__file__)
+            .resolve()
+            .parent
+        )
 
     icon_path = (
         base_path
@@ -51,64 +69,83 @@ def get_application_icon():
 
         return QIcon()
 
-    return QIcon(str(icon_path))
+    return QIcon(
+        str(icon_path)
+    )
 
 
 # ============================================================
-# START LITENOVA
+# MAIN APPLICATION
 # ============================================================
 
 def main():
 
-    # Create the application.
+    # --------------------------------------------------------
+    # CREATE APPLICATION
+    # --------------------------------------------------------
 
-    app = QApplication(sys.argv)
+    app = QApplication(
+        sys.argv
+    )
 
-    app.setApplicationName("Litenova")
+    app.setApplicationName(
+        APP_NAME
+    )
 
-    app.setOrganizationName("Litenova")
+    app.setApplicationVersion(
+        APP_VERSION
+    )
 
-    # ========================================================
-    # RESTORE ORIGINAL APPLICATION ICON
-    # ========================================================
+    app.setOrganizationName(
+        ORGANIZATION_NAME
+    )
 
-    litenova_icon = get_application_icon()
+    # --------------------------------------------------------
+    # APPLICATION ICON
+    # --------------------------------------------------------
+
+    litenova_icon = (
+        get_application_icon()
+    )
 
     app.setWindowIcon(
         litenova_icon
     )
 
-    # ========================================================
-    # INITIALIZE DATABASE BEFORE LOADING THE THEME OR PAGES
-    # ========================================================
+    # --------------------------------------------------------
+    # DATABASE
+    # --------------------------------------------------------
+    #
+    # Database initialization happens on the user's computer.
+    #
+    # No personal database is bundled inside Litenova.exe.
+    #
+    # A fresh user therefore gets a fresh database.
+    # --------------------------------------------------------
 
     initialize_database()
 
-    # ========================================================
-    # APPLY SAVED THEME
-    # ========================================================
+    # --------------------------------------------------------
+    # THEME
+    # --------------------------------------------------------
 
-    apply_theme(app)
+    apply_theme(
+        app
+    )
 
-    # ========================================================
-    # CREATE MAIN WINDOW
-    # ========================================================
+    # --------------------------------------------------------
+    # MAIN WINDOW
+    # --------------------------------------------------------
 
     window = MainWindow()
 
     window.setWindowTitle(
-        "Litenova"
+        APP_NAME
     )
-
-    # Restore the original icon in the window title bar.
 
     window.setWindowIcon(
         litenova_icon
     )
-
-    # ========================================================
-    # SHOW APPLICATION
-    # ========================================================
 
     window.show()
 
@@ -116,9 +153,11 @@ def main():
 
 
 # ============================================================
-# APPLICATION ENTRY POINT
+# ENTRY POINT
 # ============================================================
 
 if __name__ == "__main__":
 
-    sys.exit(main())
+    sys.exit(
+        main()
+    )

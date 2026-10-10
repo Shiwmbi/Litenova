@@ -335,3 +335,108 @@ QDialog QPushButton:hover {
     background-color: #363947;
     border-color: #8f88ff;
 }
+
+
+/* LITENOVA_POLISHED_POPUPS_V3 */
+
+/* =========================================================
+   CLEAN DROPDOWNS
+   ========================================================= */
+
+QComboBox QAbstractItemView {
+    background-color: #1a1c24;
+    color: #eeeeee;
+    border: 1px solid #464b5e;
+    border-radius: 9px;
+    outline: none;
+    padding: 6px;
+    selection-background-color: #3d425b;
+    selection-color: #ffffff;
+}
+
+QComboBox QAbstractItemView::item {
+    min-height: 32px;
+    padding: 5px 9px;
+}
+
+/* =========================================================
+   CONTEXT MENUS
+   ========================================================= */
+
+QMenu {
+    background-color: #1a1c24;
+    color: #eeeeee;
+    border: 1px solid #464b5e;
+    border-radius: 9px;
+    padding: 6px;
+}
+
+QMenu::item {
+    min-width: 180px;
+    min-height: 28px;
+    padding: 6px 26px 6px 10px;
+    margin: 1px 0px;
+    border-radius: 6px;
+}
+
+QMenu::item:selected {
+    background-color: #3d425b;
+    color: #ffffff;
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #343846;
+    margin: 6px 8px;
+}
+
+/* =========================================================
+   POPUPS / DIALOGS
+   ========================================================= */
+
+QMessageBox,
+QDialog,
+QInputDialog {
+    background-color: #1d2029;
+    color: #eeeeee;
+}
+
+QMessageBox QLabel,
+QMessageBox QLabel#qt_msgbox_label,
+QMessageBox QLabel#qt_msgbox_informativelabel,
+QDialog QLabel,
+QInputDialog QLabel {
+    background: transparent;
+    background-color: transparent;
+    border: none;
+}
+
+QMessageBox QPushButton,
+QDialog QPushButton,
+QInputDialog QPushButton {
+    min-width: 88px;
+    min-height: 30px;
+    color: #eeeeee;
+    background-color: #252934;
+    border: 1px solid #454a5c;
+    border-radius: 8px;
+    padding: 6px 14px;
+}
+
+QMessageBox QPushButton:hover,
+QDialog QPushButton:hover,
+QInputDialog QPushButton:hover {
+    background-color: #303542;
+    border-color: #6b718b;
+}
+
+QInputDialog QLineEdit,
+QInputDialog QComboBox {
+    min-height: 34px;
+    background-color: #14161c;
+    color: #eeeeee;
+    border: 1px solid #41465a;
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+

@@ -118,6 +118,8 @@ def row_label(
 
     box = QWidget()
 
+    box.setObjectName("settingsRowLabel")
+
     layout = QVBoxLayout(
         box
     )
@@ -364,6 +366,8 @@ class SettingsCard(QFrame):
         widget = QWidget(
             self
         )
+
+        widget.setObjectName("settingsRow")
 
         row = QHBoxLayout(
             widget
@@ -973,6 +977,9 @@ class SettingsPage(QWidget):
         scroller.setHorizontalScrollBarPolicy(
             Qt.ScrollBarAlwaysOff
         )
+        scroller.setVerticalScrollBarPolicy(
+            Qt.ScrollBarAlwaysOff
+        )
 
         content = QWidget()
 
@@ -1189,6 +1196,8 @@ class SettingsPage(QWidget):
         )
 
         font_controls = QWidget()
+
+        font_controls.setObjectName("settingsInlineControl")
 
         frow = QHBoxLayout(
             font_controls
@@ -1644,6 +1653,84 @@ class SettingsPage(QWidget):
     # ========================================================
     # LOAD SETTINGS
     # ========================================================
+
+        # LITENOVA_SETTINGS_CLEAN_ROWS_V3
+        self.setStyleSheet(
+            self.styleSheet()
+            + """
+            QWidget#settingsRow,
+            QWidget#settingsRowLabel,
+            QWidget#settingsInlineControl {
+                background: transparent;
+                background-color: transparent;
+                border: none;
+            }
+
+            QSlider {
+                background: transparent;
+                background-color: transparent;
+                border: none;
+            }
+
+            QSlider::groove:horizontal {
+                background: #3b4052;
+                height: 5px;
+                border: none;
+                border-radius: 2px;
+            }
+
+            QSlider::sub-page:horizontal {
+                background: #7472c6;
+                border-radius: 2px;
+            }
+
+            QSlider::add-page:horizontal {
+                background: #3b4052;
+                border-radius: 2px;
+            }
+
+            QSlider::handle:horizontal {
+                background: #c5c4fa;
+                width: 15px;
+                margin: -5px 0;
+                border-radius: 7px;
+            }
+
+            QPushButton#settingsAction {
+                background: #20232d;
+                color: #e9e8ff;
+                border: 1px solid #414658;
+                border-radius: 8px;
+                padding: 8px 14px;
+                font-size: 12px;
+            }
+
+            QPushButton#settingsAction:hover {
+                background: #292d39;
+                border-color: #646a82;
+            }
+
+            QPushButton#settingsAction:pressed {
+                background: #303441;
+            }
+
+            QComboBox QAbstractItemView {
+                background: #1a1c24;
+                color: #e7e8ff;
+                selection-background-color: #3d425b;
+                selection-color: #ffffff;
+                border: 1px solid #464b5e;
+                border-radius: 9px;
+                outline: none;
+                padding: 6px;
+            }
+
+            QComboBox QAbstractItemView::item {
+                min-height: 32px;
+                padding: 5px 9px;
+            }
+            """
+        )
 
     def load_settings(
         self,

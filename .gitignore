@@ -1,5 +1,10 @@
 # ============================================================
-# PYTHON GENERATED FILES
+# LITENOVA - GIT IGNORE
+# ============================================================
+
+
+# ============================================================
+# PYTHON
 # ============================================================
 
 __pycache__/
@@ -7,58 +12,73 @@ __pycache__/
 *$py.class
 
 .pytest_cache/
-.ruff_cache/
 .mypy_cache/
+.ruff_cache/
 
 
 # ============================================================
-# VIRTUAL ENVIRONMENT
+# VIRTUAL ENVIRONMENTS
 # ============================================================
 
 .venv/
 venv/
+env/
 
 
 # ============================================================
-# LITENOVA LOCAL USER DATA
+# PRIVATE LITENOVA USER DATA
 # ============================================================
 
+# Development Library.
+# NEVER commit this folder.
 data/
 
+# SQLite databases.
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 
+# Imported books.
 *.epub
 *.cbz
 
+# Generated user-library directories.
+books/
+covers/
+
 
 # ============================================================
-# LITENOVA RESET / IMPORT TEMPORARY DATA
+# LITENOVA BACKUPS / RECOVERY
 # ============================================================
+
+*.zip
 
 .litenova-before-reset-*/
 .litenova-previous-*/
 .litenova-stage-*/
 
 Litenova_Recovery_Backups/
+Litenova_UI_Backup_*/
+Litenova_UI_PreFix_*/
+Litenova_cleanup_backups/
 
 
 # ============================================================
-# PYINSTALLER GENERATED OUTPUT
+# PYINSTALLER BUILD OUTPUT
 # ============================================================
 
 build/
 dist/
+release/
 
 # IMPORTANT:
-# Litenova.spec is intentionally NOT ignored.
-# It should be stored in Git so releases can be rebuilt.
+# Do NOT ignore Litenova.spec.
+# It is part of the official source release.
 
 
 # ============================================================
-# IDE
+# IDE / EDITOR
 # ============================================================
 
 .vscode/
@@ -66,20 +86,14 @@ dist/
 
 
 # ============================================================
-# LOGS / TEMPORARY FILES
+# LOGS / TEMP FILES
 # ============================================================
 
 *.log
 *.tmp
+*.temp
 *.partial
-
-
-# ============================================================
-# OLD CLEANUP ARCHIVES
-# ============================================================
-
-Litenova_cleanup_backups/
-Litenova_Development_Archive/
+*.bak
 
 
 # ============================================================
@@ -88,3 +102,10 @@ Litenova_Development_Archive/
 
 Thumbs.db
 Desktop.ini
+
+
+# ============================================================
+# MACOS
+# ============================================================
+
+.DS_Store

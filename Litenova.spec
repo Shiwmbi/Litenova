@@ -1,11 +1,34 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(SPECPATH).resolve()
+
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    ["main.py"],
+    pathex=[
+        str(PROJECT_ROOT),
+    ],
     binaries=[],
-    datas=[('resources', 'resources')],
+    datas=[
+        (
+            str(
+                PROJECT_ROOT
+                / "resources"
+            ),
+            "resources",
+        ),
+        (
+            str(
+                PROJECT_ROOT
+                / "app"
+                / "styles"
+            ),
+            "app/styles",
+        ),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -14,7 +37,12 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
-pyz = PYZ(a.pure)
+
+
+pyz = PYZ(
+    a.pure
+)
+
 
 exe = EXE(
     pyz,
@@ -22,11 +50,11 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Litenova',
+    name="Litenova",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
@@ -35,5 +63,16 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['resources/icons/litenova.ico'],
+    icon=[
+        str(
+            PROJECT_ROOT
+            / "resources"
+            / "icons"
+            / "litenova.ico"
+        )
+    ],
+    version=str(
+        PROJECT_ROOT
+        / "version_info.txt"
+    ),
 )

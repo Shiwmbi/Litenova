@@ -34,7 +34,7 @@ class BookCard(QFrame):
     def __init__(
         self, book, mode="grid", cover_width=200,
         progress=0.0, show_progress=True,
-        show_read_button=True, parent=None,
+        parent=None,
         original_cover=None,
     ):
         super().__init__(parent)
@@ -43,7 +43,6 @@ class BookCard(QFrame):
         self.cover_width = cover_width
         self.progress = max(0.0, min(float(progress or 0.0), 1.0))
         self.show_progress = show_progress
-        self.show_read_button = show_read_button
         self.setObjectName("libraryBookCard")
         self.setCursor(Qt.PointingHandCursor)
         # Qt shares QPixmap pixel data between cards until modified. Reusing
@@ -139,16 +138,6 @@ class BookCard(QFrame):
         self.progress_badge.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.progress_badge.setVisible(self.show_progress and self.mode == "grid")
 
-        self.read_button = QPushButton(self.cover_box)
-        self.read_button.setObjectName("libraryReadButton")
-        self.read_button.setIcon(ui_icon("continue_reading"))
-        self.read_button.setIconSize(QSize(21, 21))
-        self.read_button.setFixedSize(39, 39)
-        self.read_button.move(self.cover_width - 46, cover_height - 46)
-        self.read_button.setToolTip("Read / Continue Reading")
-        self.read_button.setCursor(Qt.PointingHandCursor)
-        self.read_button.setVisible(self.show_read_button)
-        self.read_button.clicked.connect(self.open_book)
 
         # Grid cover: a dark, high-contrast badge at the bottom-left.
         # Use the stored format/category, not the user's custom shelf name.
@@ -268,10 +257,6 @@ class BookCard(QFrame):
                 background: #babbfa; color: #17192c; border: none;
                 border-radius: 14px; font-size: 12px; font-weight: 700;
             }
-            QPushButton#libraryReadButton {
-                background: #1c438f; border: none; border-radius: 19px; padding: 0;
-            }
-            QPushButton#libraryReadButton:hover { background: #315bb1; }
             QLabel#libraryCardTitle {
                 background: transparent; border: none; padding: 0;
                 color: #f1f0ff; font-weight: 600; font-size: 13px;
