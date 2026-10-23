@@ -11,12 +11,13 @@ import sys
 import posixpath
 import zipfile
 import time
+import xml.etree.ElementTree as ET
 from urllib.parse import unquote, urlsplit
 from html import unescape
 from html import escape
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal, QTimer, QSize, QEvent
+from PySide6.QtCore import Qt, Signal, QTimer, QSize, QEvent, QBuffer, QIODevice
 from PySide6.QtGui import (
     QFont,
     QPixmap,
@@ -25,6 +26,7 @@ from PySide6.QtGui import (
     QKeySequence,
     QShortcut,
     QImage,
+    QImageReader,
     QTextDocument,
     QIcon,
 )
@@ -3252,6 +3254,8 @@ class ReaderPage(QWidget):
                 chapter_html
             )
 
+        html = self.convert_svg_illustrations(html)
+
         if self.show_images:
 
             html = self.resolve_epub_images(
@@ -3550,180 +3554,122 @@ class ReaderPage(QWidget):
     # RESOLVE EPUB IMAGES
     # ========================================================
 
-    def resolve_epub_images(
-        self,
-        chapter_html,
-    ):
+    def epub_image_member(self, src):
+        """Resolve both HTML and SVG references against the current chapter."""
+        try:
+            url = urlsplit(unescape(src).strip())
+            if url.scheme or url.netloc or not url.path:
+                return None
+            path = posixpath.normpath(unquote(url.path).replace("\\", "/"))
+        except ValueError:
+            return None
 
+        if not url.path.startswith("/") and self.chapters:
+            chapter = self.chapters[self.current_chapter].get("file_name", "")
+            relative = posixpath.normpath(posixpath.join(posixpath.dirname(chapter), path))
+            if relative in self._epub_images:
+                return self._epub_images[relative]
+            # EbookLib file_name is relative to the OPF directory, whereas
+            # the image index contains full ZIP member names.
+            candidates = [value for key, value in self._epub_images.items()
+                          if key.endswith("/" + relative)]
+            if len(candidates) == 1:
+                return candidates[0]
+        path = path.lstrip("/")
+        if path in self._epub_images:
+            return self._epub_images[path]
+        candidates = [value for key, value in self._epub_images.items()
+                      if key.endswith("/" + path)]
+        if len(candidates) == 1:
+            return candidates[0]
+        filename = posixpath.basename(path)
+        candidates = [value for key, value in self._epub_images.items()
+                      if posixpath.basename(key) == filename]
+        return candidates[0] if len(candidates) == 1 else None
+
+    def convert_svg_illustrations(self, chapter_html):
+        """Adapt only a single raster image plus optional SVG title/description.
+
+        QTextDocument ignores inline SVG image elements, even with a resolved
+        resource URL. Arbitrary SVG artwork must remain untouched.
+        """
+        def convert(match):
+            original = match.group(0)
+            try:
+                # XHTML can declare these namespaces on an ancestor.
+                container = ET.fromstring(
+                    '<root xmlns="http://www.w3.org/2000/svg" '
+                    'xmlns:xlink="http://www.w3.org/1999/xlink">'
+                    + original + '</root>'
+                )
+                svg = container[0]
+                local = lambda tag: tag.rsplit("}", 1)[-1].lower()
+                children = list(svg)
+                images = [child for child in children if local(child.tag) == "image"]
+                if (len(images) != 1 or (svg.text or "").strip()
+                        or any(local(child.tag) not in ("image", "title", "desc")
+                               or list(child) or (child.tail or "").strip()
+                               for child in children)):
+                    return original
+                image = images[0]
+                attrs = {local(key): value for key, value in image.attrib.items()}
+                outer = {local(key): value for key, value in svg.attrib.items()}
+                # These features require real SVG composition, not an HTML image.
+                unsafe = {"transform", "style", "clip-path", "mask", "filter"}
+                if (unsafe.intersection(attrs) or unsafe.intersection(outer)
+                        or attrs.get("x", "0") not in ("0", "0px")
+                        or attrs.get("y", "0") not in ("0", "0px")
+                        or attrs.get("preserveaspectratio", "").lower() == "none"):
+                    return original
+                src = image.get("href") or image.get("{http://www.w3.org/1999/xlink}href")
+                # Attribute names in HTML sometimes use uppercase spelling.
+                src = src or attrs.get("href", "")
+                member = self.epub_image_member(src)
+                if not self.show_images:
+                    return ""
+                if member is None:
+                    return original
+                # Read only the raster header: no new decoded-image cache.
+                with zipfile.ZipFile(self._epub_file) as archive:
+                    data = archive.read(member)
+                buffer = QBuffer()
+                buffer.setData(data)
+                buffer.open(QIODevice.ReadOnly)
+                size = QImageReader(buffer).size()
+                if not size.isValid():
+                    return ""
+                available = max(1, self.reader.viewport().width()
+                                - 2 * self.reader.document().documentMargin())
+                width = max(1, round(min(size.width(), available * self.image_size / 100)))
+                height = max(1, round(width * size.height() / size.width()))
+                return ('<div align="center"><img src="' + escape(src, quote=True)
+                        + '" width="' + str(width) + '" height="' + str(height)
+                        + '" /></div>')
+            except (ET.ParseError, ValueError, OSError, KeyError, zipfile.BadZipFile):
+                return original
+
+        return re.sub(r"<svg\b[^>]*>.*?</svg\s*>", convert, chapter_html,
+                      flags=re.I | re.S)
+
+    def resolve_epub_images(self, chapter_html):
         if not self._epub_images:
-
             return chapter_html
 
-        def convert(
-            match,
-        ):
-
-            tag = (
-                match.group(
-                    0
-                )
-            )
-
-            attr = re.search(
-                r'''\bsrc\s*=\s*(["'])(.*?)\1''',
-                tag,
-                re.I
-                | re.S,
-            )
-
+        def convert(match):
+            tag = match.group(0)
+            attr = re.search(r'''\bsrc\s*=\s*(["'])(.*?)\1''', tag, re.I | re.S)
             if attr is None:
-
                 return tag
-
-            src = unescape(
-                attr.group(
-                    2
-                )
-            ).strip()
-
-            if (
-                not src
-                or src.startswith(
-                    (
-                        "data:",
-                        "litenova-image:",
-                        "http:",
-                        "https:",
-                    )
-                )
-            ):
-
+            member = self.epub_image_member(attr.group(2))
+            if member is None:
                 return tag
-
-            path = posixpath.normpath(
-                unquote(
-                    urlsplit(
-                        src
-                    ).path
-                )
-                .replace(
-                    "\\",
-                    "/",
-                )
-                .lstrip(
-                    "/"
-                )
-            )
-
-            member = (
-                self._epub_images.get(
-                    path
-                )
-            )
-
-            if member is None:
-
-                candidates = [
-                    value
-                    for (
-                        key,
-                        value,
-                    )
-                    in self._epub_images.items()
-                    if (
-                        key.endswith(
-                            "/"
-                            + path
-                        )
-                        or key == path
-                    )
-                ]
-
-                if len(
-                    candidates
-                ) == 1:
-
-                    member = (
-                        candidates[
-                            0
-                        ]
-                    )
-
-            if member is None:
-
-                filename = (
-                    posixpath.basename(
-                        path
-                    )
-                )
-
-                candidates = [
-                    value
-                    for (
-                        key,
-                        value,
-                    )
-                    in self._epub_images.items()
-                    if (
-                        posixpath.basename(
-                            key
-                        )
-                        == filename
-                    )
-                ]
-
-                if len(
-                    candidates
-                ) == 1:
-
-                    member = (
-                        candidates[
-                            0
-                        ]
-                    )
-
-            if member is None:
-
-                return tag
-
             self._image_serial += 1
+            image_id = str(self._image_serial)
+            self._epub_image_index[image_id] = member
+            return (tag[:attr.start(2)] + "litenova-image:///" + image_id
+                    + tag[attr.end(2):])
 
-            image_id = str(
-                self._image_serial
-            )
-
-            self._epub_image_index[
-                image_id
-            ] = member
-
-            replacement = (
-                "litenova-image:///"
-                + image_id
-            )
-
-            return (
-                tag[
-                    :attr.start(
-                        2
-                    )
-                ]
-                + replacement
-                + tag[
-                    attr.end(
-                        2
-                    ):
-                ]
-            )
-
-        return re.sub(
-            r"<img\b[^>]*>",
-            convert,
-            chapter_html,
-            flags=(
-                re.I
-                | re.S
-            ),
-        )
+        return re.sub(r"<img\b[^>]*>", convert, chapter_html, flags=re.I | re.S)
 
     # ========================================================
     # LOAD EPUB IMAGE
