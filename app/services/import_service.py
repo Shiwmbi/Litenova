@@ -64,6 +64,10 @@ class DuplicateBookError(
     already exists in the Library.
     """
 
+    def __init__(self, message, existing_book=None):
+        super().__init__(message)
+        self.existing_book = existing_book
+
 
 class InvalidBookError(
     BookImportError
@@ -547,7 +551,8 @@ def import_book(
             (
                 "This item is already "
                 "in your Library."
-            )
+            ),
+            existing_book=existing_book,
         )
 
     # ========================================================

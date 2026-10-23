@@ -1,443 +1,122 @@
 # Litenova
 
-**Litenova** is a desktop-based EPUB light novel reader and personal library management application.
-
-It allows users to import their own EPUB light novels, organize them in a local library, read them directly inside the application, customize their reading experience, and automatically save their reading progress.
-
----
+Litenova 3.0.1 is a Windows desktop reader for EPUB light novels and CBZ manga/manhwa, built with Python and PySide6.
 
 ## Features
 
-### EPUB Library Management
+- Import EPUB and CBZ files into a local Library with covers and metadata.
+- Search and organize books, including custom categories.
+- Read EPUB chapters with a table of contents and reader settings.
+- Read CBZ manga and manhwa with the comic reader.
+- Save reading progress and resume from Library or History.
+- Use the dark appearance and persistent reading preferences.
+- Open EPUB/CBZ files from Windows Explorer or the command line.
+- First-launch onboarding and a configurable start page.
 
-- Import EPUB files from the computer
-- Store imported EPUBs locally
-- Display book title
-- Display author
-- Display book cover
-- Search books by title
-- Search books by author
-- Remove books from the library
-- Prevent duplicate EPUB imports
+Books are supplied by the user. Reading and Library management work locally without an account or cloud service.
 
-### EPUB Reader
+## Windows installation
 
-- Read EPUB light novels directly inside Litenova
-- Previous chapter navigation
-- Next chapter navigation
-- Table of Contents
-- Jump directly to a chapter
-- Scroll through chapter content
+Download **Litenova-Setup-3.0.1.exe** from this repository's GitHub Releases and run it. Python is not required for the installed application. The build targets 64-bit Windows 10/11.
 
-### Reading Progress
+Installation is per-user, normally under:
 
-- Automatically save the current chapter
-- Automatically save scroll position
-- Resume reading from the previous position
-- Progress remains saved after restarting the application
-
-### Reading Preferences
-
-- Increase reader font size
-- Decrease reader font size
-- Dark mode
-- Light mode
-- Settings are automatically saved
-
-### Offline Storage
-
-Litenova works locally without requiring:
-
-- User accounts
-- Cloud storage
-- Internet connection
-- Online ebook services
-
-Book information, settings, and reading progress are stored locally using SQLite.
-
----
-
-## Technology Stack
-
-| Component | Technology |
-|---|---|
-| Programming Language | Python |
-| Desktop GUI | PySide6 |
-| EPUB Processing | EbookLib |
-| Database | SQLite |
-| Packaging | PyInstaller |
-| Version Control | Git / GitHub |
-| Project Management | Trello |
-| UI Design | Figma |
-
----
-
-## System Requirements
-
-### Development
-
-- Windows 10 or Windows 11
-- Python 3
-- pip
-- Git
-
-### Packaged Application
-
-The packaged Windows version does not require Python to be installed.
-
----
-
-## Installation for Users
-
-### Windows Executable
-
-1. Download `Litenova.exe`.
-2. Open `Litenova.exe`.
-3. Open the **Browse** page.
-4. Select an `.epub` file.
-5. Click **Import EPUB**.
-6. Open the imported book from the **Library**.
-
----
-
-## Development Setup
-
-Clone the repository:
-
-```bash
-git clone https://github.com/YOUR_USERNAME/Litenova.git
+```text
+%LOCALAPPDATA%\Programs\Litenova
 ```
 
-Enter the project directory:
+Launch Litenova from the Start Menu. A Desktop shortcut is optional. In Browse, select EPUB/CBZ files and import them, then open a book from Library. CBZ imports use the Manga or Manhwa category.
 
-```bash
-cd Litenova
-```
+To upgrade an existing installation, run the new installer directly over it. Uninstalling removes the program and Litenova's file-handler registration, while preserving personal Library data. Reinstalling restores access to that data.
 
-Create a virtual environment:
+### Open files from Windows
 
-```bash
-python -m venv .venv
-```
+Use **Open with > Litenova** for `.epub` and `.cbz` files. To use double-click opening, choose Litenova as the default application for each format in Windows. The installer registers Litenova as an available handler without forcing a default-app change.
 
-Activate it in PowerShell:
+Command-line examples in PowerShell:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
+& "$env:LOCALAPPDATA\Programs\Litenova\Litenova.exe" "C:\My Books\Novel.epub"
+& "$env:LOCALAPPDATA\Programs\Litenova\Litenova.exe" "C:\My Comics\Chapter 01.cbz"
 ```
 
-Install dependencies:
+A valid file is processed after the main window and any first-launch onboarding are ready. New books use the existing import service; matching imported books are opened without another import. Unsupported formats, directories, and missing paths are ignored.
 
-```bash
-pip install -r requirements.txt
-```
+## Local data
 
-Run Litenova:
-
-```bash
-python main.py
-```
-
----
-
-## Project Structure
-
-```text
-Litenova/
-│
-├── main.py
-├── requirements.txt
-├── version_info.txt
-├── README.md
-│
-├── app/
-│   │
-│   ├── database/
-│   │   ├── __init__.py
-│   │   ├── database.py
-│   │   └── books_repository.py
-│   │
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── book.py
-│   │   └── reading_progress.py
-│   │
-│   ├── pages/
-│   │   ├── __init__.py
-│   │   ├── library_page.py
-│   │   ├── browse_page.py
-│   │   ├── reader_page.py
-│   │   └── settings_page.py
-│   │
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── epub_service.py
-│   │   ├── import_service.py
-│   │   ├── library_service.py
-│   │   ├── path_service.py
-│   │   ├── progress_service.py
-│   │   ├── settings_service.py
-│   │   └── theme_service.py
-│   │
-│   ├── styles/
-│   │   ├── dark.qss
-│   │   └── light.qss
-│   │
-│   ├── widgets/
-│   │   ├── __init__.py
-│   │   ├── book_card.py
-│   │   ├── dialogs.py
-│   │   ├── search_bar.py
-│   │   └── sidebar.py
-│   │
-│   └── windows/
-│       ├── __init__.py
-│       └── main_window.py
-│
-├── data/
-│   ├── books/
-│   └── covers/
-│
-└── resources/
-    └── icons/
-        └── litenova.ico
-```
-
----
-
-## Application Workflow
-
-```text
-Launch Litenova
-      ↓
-Library
-      ↓
-Browse
-      ↓
-Choose EPUB
-      ↓
-Import EPUB
-      ↓
-EbookLib reads metadata
-      ↓
-EPUB copied to local storage
-      ↓
-Book saved in SQLite
-      ↓
-Book appears in Library
-      ↓
-Click Book
-      ↓
-Reader
-      ↓
-Read / Navigate Chapters
-      ↓
-Progress Automatically Saved
-```
-
----
-
-## Local Data Storage
-
-During development, application data is stored under:
-
-```text
-Litenova/data/
-```
-
-The packaged Windows application stores user data under:
+The installed application stores books, covers, and its SQLite database under:
 
 ```text
 %LOCALAPPDATA%\Litenova
 ```
 
-This includes:
+Source-mode development uses `data/` inside the project instead. Book metadata, progress, history, and categories are stored locally. Preferences also use Qt QSettings; not all settings are stored in SQLite. Neither data nor QSettings should be reset when upgrading or uninstalling.
 
-```text
-Litenova/
-├── litenova.db
-├── books/
-└── covers/
-```
+Private books, covers, databases, and generated build output must not be committed or included in release downloads.
 
-### `litenova.db`
+## Development
 
-The SQLite database stores:
+Use a Python version compatible with `requirements.txt`. The current release build uses Python 3.14 and the project's `.venv`.
 
-- Book information
-- EPUB paths
-- Cover paths
-- Reading progress
-- Reader preferences
-
----
-
-## Database
-
-Litenova uses three main SQLite tables.
-
-### Books
-
-Stores imported EPUB information.
-
-```text
-books
-├── id
-├── title
-├── author
-├── epub_path
-├── cover_path
-└── date_added
-```
-
-### Reading Progress
-
-Stores the user's most recent reading position.
-
-```text
-reading_progress
-├── id
-├── book_id
-├── chapter_index
-├── position
-└── last_read
-```
-
-### Settings
-
-Stores persistent application preferences.
-
-```text
-settings
-├── key
-└── value
-```
-
----
-
-## Reader Navigation
-
-Books are opened directly from the Library.
-
-The Reader is intentionally not displayed as a main sidebar page.
-
-```text
-Library
-   ↓
-Click Book
-   ↓
-Reader
-```
-
-Reader navigation includes:
-
-```text
-← Back to Library
-
-☰ Contents
-
-← Previous     Chapter Information     Next →
-```
-
----
-
-## Reading Progress
-
-Litenova automatically records:
-
-```text
-Book
-   +
-Current Chapter
-   +
-Scroll Position
-```
-
-When the book is opened again:
-
-```text
-Open Book
-   ↓
-Load Progress from SQLite
-   ↓
-Restore Chapter
-   ↓
-Restore Scroll Position
-```
-
----
-
-## Supported Format
-
-Litenova currently supports:
-
-```text
-EPUB
-```
-
----
-
-## Out of Scope
-
-The current version does not include:
-
-- PDF support
-- MOBI support
-- AZW3 support
-- DRM-protected EPUB support
-- Online ebook downloads
-- Ebook purchasing
-- Cloud synchronization
-- Cloud backup
-- User accounts
-- Audiobooks
-- Text-to-speech
-- Advanced highlighting
-- Advanced annotations
-- Online dictionary integration
-
----
-
-## Building the Windows Executable
-
-Install PyInstaller:
-
-```bash
-pip install pyinstaller
-```
-
-Build Litenova:
+From a local checkout in PowerShell:
 
 ```powershell
-pyinstaller --noconfirm --clean --onefile --windowed --name Litenova --icon "resources\icons\litenova.ico" --version-file version_info.txt --add-data "app\styles;app\styles" --add-data "resources\icons\litenova.ico;resources\icons" main.py
+cd C:\Projects\Litenova
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python main.py
 ```
 
-The resulting executable will be located at:
+To launch with a file in source mode:
+
+```powershell
+python main.py "C:\My Books\Novel.epub"
+```
+
+The main components are PySide6 for the UI, EbookLib for EPUB processing, Pillow and ZIP-based services for comics, SQLite for the Library, PyInstaller for packaging, and Inno Setup for the Windows installer.
+
+## Release build
+
+Validate Python source and use the existing build script:
+
+```powershell
+python -m compileall -q main.py app
+.\release_v3.ps1
+```
+
+The script uses `.venv\Scripts\python.exe` and the tracked `Litenova.spec`, rebuilds generated `build/`, `dist/`, and `release/` output, checks for tracked private files without changing Git tracking, and writes:
 
 ```text
-dist\Litenova.exe
+release\Litenova.exe
+release\Litenova.exe.sha256.txt
 ```
 
----
+Keep development files and personal data outside those generated output directories. Build the installer using the installed Inno Setup compiler; for a per-user Inno Setup 7 installation:
 
-## Version
-
-Current version:
-
-```text
-1.0.0
+```powershell
+& "$env:LOCALAPPDATA\Programs\Inno Setup 7\ISCC.exe" ".\installer\Litenova.iss"
 ```
 
----
+Adjust the compiler path if Inno Setup is installed elsewhere. The installer script packages only `release\Litenova.exe` as the application payload.
 
-## License
+Generate the installer checksum:
 
-This project was developed as an academic software project.
+```powershell
+$installer = ".\installer_output\Litenova-Setup-3.0.1.exe"
+$hash = Get-FileHash -LiteralPath $installer -Algorithm SHA256
+"$($hash.Hash)  Litenova-Setup-3.0.1.exe" | Set-Content -LiteralPath "$installer.sha256.txt" -Encoding Ascii
+```
 
-Third-party libraries used by the application remain subject to their respective licenses.
+Upload these two generated files to the GitHub Release:
 
----
+- `Litenova-Setup-3.0.1.exe`
+- `Litenova-Setup-3.0.1.exe.sha256.txt`
 
-## Author
+The installer is the primary user download. The loose executable remains a build artifact. Release preparation does not commit, tag, push, or publish automatically. Code signing is a separate release task; a checksum verifies file contents but is not a signature.
 
-Developed as part of the **Litenova: A Desktop-Based EPUB Light Novel Reader and Personal Library Management System** project.
+## Scope and licensing
+
+Supported book formats are EPUB and CBZ. Automatic updates, cloud synchronization, and online book downloads are not implemented.
+
+This project was developed as an academic software project. Third-party libraries remain subject to their respective licenses.

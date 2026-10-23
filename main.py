@@ -3,10 +3,13 @@ import sys
 from pathlib import Path
 
 from PySide6.QtGui import QIcon
+
 from PySide6.QtWidgets import QApplication
 
 from app.database.database import initialize_database
+
 from app.windows.main_window import MainWindow
+
 from app.services.theme_service import apply_theme
 
 
@@ -15,38 +18,33 @@ from app.services.theme_service import apply_theme
 # ============================================================
 
 APP_NAME = "Litenova"
-
-APP_VERSION = "3.0.0"
-
+APP_VERSION = "3.0.1"
 ORGANIZATION_NAME = "Litenova"
 
 
 # ============================================================
-# APPLICATION ICON
+# LITENOVA APPLICATION ICON
 # ============================================================
 
 def get_application_icon():
     """
-    Return the Litenova application icon.
+    Load Litenova's application icon.
 
     Supports:
-
-    - python main.py
-    - development mode
-    - PyInstaller one-file executable
+    - Running from VS Code
+    - Running with python main.py
+    - Running a packaged application
     """
 
     if hasattr(
         sys,
         "_MEIPASS",
     ):
-
         base_path = Path(
             sys._MEIPASS
         )
 
     else:
-
         base_path = (
             Path(__file__)
             .resolve()
@@ -75,14 +73,10 @@ def get_application_icon():
 
 
 # ============================================================
-# MAIN APPLICATION
+# START LITENOVA
 # ============================================================
 
 def main():
-
-    # --------------------------------------------------------
-    # CREATE APPLICATION
-    # --------------------------------------------------------
 
     app = QApplication(
         sys.argv
@@ -100,10 +94,6 @@ def main():
         ORGANIZATION_NAME
     )
 
-    # --------------------------------------------------------
-    # APPLICATION ICON
-    # --------------------------------------------------------
-
     litenova_icon = (
         get_application_icon()
     )
@@ -112,32 +102,15 @@ def main():
         litenova_icon
     )
 
-    # --------------------------------------------------------
-    # DATABASE
-    # --------------------------------------------------------
-    #
-    # Database initialization happens on the user's computer.
-    #
-    # No personal database is bundled inside Litenova.exe.
-    #
-    # A fresh user therefore gets a fresh database.
-    # --------------------------------------------------------
+    # Database must be ready before MainWindow creates pages.
 
     initialize_database()
-
-    # --------------------------------------------------------
-    # THEME
-    # --------------------------------------------------------
 
     apply_theme(
         app
     )
 
-    # --------------------------------------------------------
-    # MAIN WINDOW
-    # --------------------------------------------------------
-
-    window = MainWindow()
+    window = MainWindow(startup_files=sys.argv[1:])
 
     window.setWindowTitle(
         APP_NAME
@@ -153,7 +126,7 @@ def main():
 
 
 # ============================================================
-# ENTRY POINT
+# APPLICATION ENTRY POINT
 # ============================================================
 
 if __name__ == "__main__":

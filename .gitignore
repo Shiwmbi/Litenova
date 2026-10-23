@@ -71,6 +71,7 @@ Litenova_cleanup_backups/
 build/
 dist/
 release/
+installer_output/
 
 # IMPORTANT:
 # Do NOT ignore Litenova.spec.

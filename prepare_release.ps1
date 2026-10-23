@@ -38,7 +38,7 @@ Set-Location $ProjectRoot
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host " Litenova v3.0.0 Clean Release Preparation"
+Write-Host " Litenova v3.0.1 Clean Release Preparation"
 Write-Host "============================================================"
 Write-Host ""
 
@@ -630,7 +630,7 @@ $ExeSizeMB = [Math]::Round(
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host " LITENOVA v3.0.0 RELEASE IS READY"
+Write-Host " LITENOVA v3.0.1 RELEASE IS READY"
 Write-Host "============================================================"
 Write-Host ""
 
@@ -689,7 +689,7 @@ if ($GitAvailable) {
         --short
 
     Write-Host ""
-    Write-Host "If the changes look correct, commit them before creating v3.0.0."
+    Write-Host "If the changes look correct, commit them before creating v3.0.1."
     Write-Host ""
 }
 

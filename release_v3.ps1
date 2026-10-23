@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 
 # ============================================================
-# LITENOVA v3.0.0 RELEASE BUILDER
+# LITENOVA v3.0.1 RELEASE BUILDER
 # ============================================================
 
 
@@ -123,7 +123,7 @@ $ReleaseChecksum = Join-Path `
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host " LITENOVA v3.0.0 CLEAN GITHUB RELEASE"
+Write-Host " LITENOVA v3.0.1 CLEAN GITHUB RELEASE"
 Write-Host "============================================================"
 Write-Host ""
 
@@ -172,7 +172,7 @@ Write-Host "Required files exist."
 # 2. CHECK VERSION
 # ============================================================
 
-Step "2 / 9 - Checking version 3.0.0"
+Step "2 / 9 - Checking version 3.0.1"
 
 
 $VersionText = Get-Content `
@@ -180,18 +180,18 @@ $VersionText = Get-Content `
     -Raw
 
 
-if ($VersionText -notmatch '3\.0\.0') {
+if ($VersionText -notmatch '3\.0\.1') {
 
-    Fail "version_info.txt does not contain version 3.0.0."
+    Fail "version_info.txt does not contain version 3.0.1."
 }
 
 
 Write-Host "PASS"
-Write-Host "version_info.txt contains 3.0.0."
+Write-Host "version_info.txt contains 3.0.1."
 
 
 # ============================================================
-# 3. REMOVE PRIVATE DATA FROM CURRENT GIT TRACKING
+# 3. CHECK PRIVATE DATA IN CURRENT GIT TRACKING
 # ============================================================
 
 Step "3 / 9 - Checking Git for private Library data"
@@ -219,25 +219,6 @@ if ($GitAvailable) {
     Write-Host "Git repository detected."
     Write-Host ""
 
-    Write-Host "Removing data/ from Git tracking."
-    Write-Host "Your actual local data folder will NOT be deleted."
-    Write-Host ""
-
-
-    & git rm `
-        -r `
-        --cached `
-        --ignore-unmatch `
-        -- `
-        "data"
-
-
-    if ($LASTEXITCODE -ne 0) {
-
-        Fail "Git failed while removing data/ from tracking."
-    }
-
-
     $TrackedFiles = @(
         & git ls-files
     )
@@ -249,40 +230,10 @@ if ($GitAvailable) {
     }
 
 
-    foreach ($TrackedFile in $TrackedFiles) {
-
-        if (
-            $TrackedFile -match '(?i)\.(db|db-journal|db-wal|db-shm|epub|cbz)$'
-        ) {
-
-            Write-Host "Removing from Git tracking:"
-            Write-Host "  $TrackedFile"
-
-
-            & git rm `
-                --cached `
-                --ignore-unmatch `
-                -- `
-                $TrackedFile
-
-
-            if ($LASTEXITCODE -ne 0) {
-
-                Fail "Could not remove private file from Git: $TrackedFile"
-            }
-        }
-    }
-
-
-    $TrackedAfter = @(
-        & git ls-files
-    )
-
-
     $PrivateTracked = @()
 
 
-    foreach ($TrackedFile in $TrackedAfter) {
+    foreach ($TrackedFile in $TrackedFiles) {
 
         if ($TrackedFile -match '(?i)^data/') {
 
@@ -314,7 +265,7 @@ if ($GitAvailable) {
         }
 
 
-        Fail "Private data remains in the Git index."
+        Fail "Private files are tracked. Review the list and remove them from Git tracking manually; local files have not been changed."
     }
 
 
@@ -325,7 +276,7 @@ if ($GitAvailable) {
 else {
 
     Write-Host "Git repository not detected."
-    Write-Host "Git cleanup skipped."
+    Write-Host "Git audit skipped."
 }
 
 
@@ -415,7 +366,7 @@ Write-Host "Old build files removed."
 # 7. BUILD
 # ============================================================
 
-Step "7 / 9 - Building Litenova v3.0.0"
+Step "7 / 9 - Building Litenova v3.0.1"
 
 
 & $Python `
@@ -468,20 +419,20 @@ Write-Host $ProductVersion
 Write-Host ""
 
 
-if ($FileVersion -notlike "3.0.0*") {
+if ($FileVersion -notlike "3.0.1*") {
 
-    Fail "EXE FileVersion is not 3.0.0."
+    Fail "EXE FileVersion is not 3.0.1."
 }
 
 
-if ($ProductVersion -notlike "3.0.0*") {
+if ($ProductVersion -notlike "3.0.1*") {
 
-    Fail "EXE ProductVersion is not 3.0.0."
+    Fail "EXE ProductVersion is not 3.0.1."
 }
 
 
 Write-Host "PASS"
-Write-Host "EXE version is 3.0.0."
+Write-Host "EXE version is 3.0.1."
 
 
 # ============================================================
@@ -570,7 +521,7 @@ $SizeMB = [Math]::Round(
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host " LITENOVA v3.0.0 IS READY FOR GITHUB"
+Write-Host " LITENOVA v3.0.1 IS READY FOR GITHUB"
 Write-Host "============================================================"
 Write-Host ""
 
