@@ -420,43 +420,49 @@ def get_chapters(epub_path):
 
     chapters = []
 
-    for spine_item in book.spine:
+    try:
+        for spine_item in book.spine:
 
-        item_id = spine_item[0]
+            item_id = spine_item[0]
 
-        item = book.get_item_with_id(
-            item_id
-        )
-
-        if item is None:
-            continue
-
-        if (
-            item.get_type()
-            != ebooklib.ITEM_DOCUMENT
-        ):
-            continue
-
-        content = item.get_content()
-
-        chapter_html = content.decode(
-            "utf-8",
-            errors="ignore",
-        )
-
-        chapter_title = (
-            _find_chapter_title(
-                chapter_html,
-                item.file_name,
+            item = book.get_item_with_id(
+                item_id
             )
-        )
 
-        chapters.append(
-            {
-                "title": chapter_title,
-                "html": chapter_html,
-                "file_name": item.file_name,
-            }
-        )
+            if item is None:
+                continue
+
+            if (
+                item.get_type()
+                != ebooklib.ITEM_DOCUMENT
+            ):
+                continue
+
+            content = item.get_content()
+
+            chapter_html = content.decode(
+                "utf-8",
+                errors="ignore",
+            )
+
+            chapter_title = (
+                _find_chapter_title(
+                    chapter_html,
+                    item.file_name,
+                )
+            )
+
+            chapters.append(
+                {
+                    "title": chapter_title,
+                    "html": chapter_html,
+                    "file_name": item.file_name,
+                }
+            )
+    finally:
+        # EbookLib links every item back to its book. The returned chapter
+        # strings need neither object; break that cycle before dropping them.
+        for item in book.get_items():
+            item.book = None
 
     return chapters

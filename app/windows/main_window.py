@@ -224,7 +224,7 @@ class MainWindow(QMainWindow):
 
         self.browse_page = BrowsePage()
 
-        self.reader_page = ReaderPage()
+        self.reader_page = None
 
         self.comic_reader_page = ComicReaderPage()
 
@@ -234,7 +234,6 @@ class MainWindow(QMainWindow):
             self.library_page,
             self.history_page,
             self.browse_page,
-            self.reader_page,
             self.comic_reader_page,
             self.settings_page,
         ):
@@ -283,16 +282,12 @@ class MainWindow(QMainWindow):
             self.view_book_in_library
         )
 
-        self.reader_page.back_requested.connect(
-            self.return_from_reader
-        )
-
         self.comic_reader_page.back_requested.connect(
             self.return_from_reader
         )
 
         self.settings_page.settings_changed.connect(
-            self.reader_page.reload_settings
+            self.reload_reader_settings
         )
         self.settings_page.check_updates_requested.connect(
             lambda: self.check_for_updates(manual=True)
@@ -332,7 +327,7 @@ class MainWindow(QMainWindow):
         )
 
         start_actions = {
-            "library": self.show_library,
+            "library": lambda: self.show_library(refresh=False),
             "history": self.show_history,
             "browse": self.show_browse,
             "settings": self.show_settings,
@@ -340,7 +335,7 @@ class MainWindow(QMainWindow):
 
         start_actions.get(
             start_page,
-            self.show_library,
+            lambda: self.show_library(refresh=False),
         )()
 
     # ========================================================
@@ -690,8 +685,11 @@ class MainWindow(QMainWindow):
 
     def show_library(
         self,
+        *_args,
+        refresh=True,
     ):
-        self.library_page.load_books()
+        if refresh:
+            self.library_page.load_books()
 
         self.pages.setCurrentWidget(
             self.library_page
@@ -708,7 +706,10 @@ class MainWindow(QMainWindow):
     def show_history(
         self,
     ):
-        self.history_page.refresh()
+        # A newly shown History refreshes in showEvent. Clicking its active
+        # sidebar button still requests a fresh view.
+        if self.pages.currentWidget() is self.history_page:
+            self.history_page.refresh()
 
         self.pages.setCurrentWidget(
             self.history_page
@@ -753,6 +754,17 @@ class MainWindow(QMainWindow):
     # ========================================================
     # OPEN FROM LIBRARY
     # ========================================================
+
+    def reload_reader_settings(self):
+        if self.reader_page is not None:
+            self.reader_page.reload_settings()
+
+    def get_reader_page(self):
+        if self.reader_page is None:
+            self.reader_page = ReaderPage()
+            self.reader_page.back_requested.connect(self.return_from_reader)
+            self.pages.addWidget(self.reader_page)
+        return self.reader_page
 
     def open_reader_from_library(
         self,
@@ -928,12 +940,14 @@ class MainWindow(QMainWindow):
 
         else:
 
-            self.reader_page.open_book(
-                book
-            )
-
+            reader_page = self.get_reader_page()
+            # Establish the reader layout (including panel restoration)
+            # before queuing the chapter's saved scroll-position restore.
             self.pages.setCurrentWidget(
-                self.reader_page
+                reader_page
+            )
+            reader_page.open_book(
+                book
             )
 
     # ========================================================

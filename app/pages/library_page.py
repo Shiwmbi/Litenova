@@ -54,7 +54,6 @@ from PySide6.QtWidgets import (
 )
 
 from app.database.custom_categories_repository import (
-    ensure_custom_category_tables,
     create_custom_category,
     get_custom_categories,
     get_custom_category,
@@ -67,11 +66,11 @@ from app.database.custom_categories_repository import (
 )
 
 from app.database.history_repository import (
-    get_history_entries,
+    get_last_read_entries,
 )
 
 from app.services.progress_service import (
-    get_progress,
+    get_progress_by_book_id,
 )
 
 from app.services.library_service import (
@@ -278,8 +277,6 @@ class LibraryPage(QWidget):
         # ====================================================
         # CUSTOM CATEGORIES
         # ====================================================
-
-        ensure_custom_category_tables()
 
         self.active_filter_type = "all"
 
@@ -2284,7 +2281,7 @@ class LibraryPage(QWidget):
 
         try:
 
-            for entry in get_history_entries():
+            for entry in get_last_read_entries():
 
                 book_id = book_value(
                     entry,
@@ -2316,14 +2313,13 @@ class LibraryPage(QWidget):
         # ====================================================
 
         progress_by_id = {}
+        stored_progress = get_progress_by_book_id()
 
         for book in books:
 
             try:
 
-                progress = get_progress(
-                    book["id"]
-                )
+                progress = stored_progress.get(book["id"])
 
                 position = float(
                     book_value(
@@ -2447,7 +2443,7 @@ class LibraryPage(QWidget):
                     book_value(book, "id"),
                     book_value(book, "title"),
                     book_value(book, "author"),
-                    book_value(book, "cover_path"),
+                    BookCard.cover_file_signature(book_value(book, "cover_path")),
                     book_value(book, "category"),
                     book_value(book, "file_path"),
                     progress_by_id.get(book["id"], 0.0))
@@ -2646,27 +2642,11 @@ class LibraryPage(QWidget):
         """
         Create book cards for one display mode.
 
-        Reuse decoded cover images when possible.
+        BookCard reuses byte-bounded, display-sized cover thumbnails.
 
         Every card has an explicit Library parent,
         preventing it from becoming a separate window.
         """
-
-        opposite = (
-            "list"
-            if mode == "grid"
-            else "grid"
-        )
-
-        other = (
-            self._view_cards.get(opposite)
-            or []
-        )
-
-        covers = {
-            card.book["id"]: card.original_cover
-            for card in other
-        }
 
         cards = []
 
@@ -2684,9 +2664,6 @@ class LibraryPage(QWidget):
                     self.show_progress_box.isChecked()
                 ),
                 parent=self.books_container,
-                original_cover=covers.get(
-                    book["id"]
-                ),
             )
 
             # Do not display the card until it has

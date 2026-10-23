@@ -1,4 +1,7 @@
+from collections import OrderedDict
+from math import ceil
 from pathlib import Path
+import zipfile
 import time
 
 from PySide6.QtCore import (
@@ -6,10 +9,15 @@ from PySide6.QtCore import (
     Signal,
     QTimer,
     QEvent,
+    QSize,
+    QByteArray,
+    QBuffer,
+    QIODevice,
 )
 
 from PySide6.QtGui import (
     QPixmap,
+    QImageReader,
     QShortcut,
     QKeySequence,
 )
@@ -34,6 +42,7 @@ from app.database.books_repository import (
 from app.services.cbz_service import (
     get_cbz_pages,
     read_cbz_page,
+    read_cbz_page_size,
     natural_sort_key,
 )
 
@@ -60,6 +69,9 @@ class ComicReaderPage(QWidget):
     MAX_ZOOM = 250
     ZOOM_STEP = 10
     DEFAULT_ZOOM = 50
+    PAGE_CACHE_BYTES = 64 * 1024 * 1024
+    NEARBY_PAGE_LIMIT = 6
+
 
     # "auto" preserves the previous Manga / Manhwa defaults.
     PAGED_MODES = frozenset(("paged_ltr", "paged_rtl", "paged_vertical"))
@@ -79,6 +91,7 @@ class ComicReaderPage(QWidget):
         # ====================================================
 
         self.book = None
+        self._last_saved_progress = None
         self.category = "manga"
         self.reading_mode = "paged_ltr"
         self._last_vertical_wheel_time = 0.0
@@ -100,7 +113,21 @@ class ComicReaderPage(QWidget):
         # MANHWA CACHE
         # ====================================================
 
-        self.manhwa_original_pixmaps = []
+        self._comic_archive = None
+        self._archive_path = None
+        self._page_sizes = []
+        self._page_cache = OrderedDict()
+        self._page_cache_sizes = {}
+        self._page_cache_bytes = 0
+        self._pending_pages = []
+        self._keep_pages = set()
+        self._visible_pages = set()
+        self._failed_pages = set()
+        self._comic_suspended = False
+        self._resume_position = 0.0
+        self._requested_strip_position = 0.0
+        self._setting_strip_geometry = False
+
         self.manhwa_page_labels = []
 
         self.cached_manhwa_chapter_path = None
@@ -248,6 +275,15 @@ class ComicReaderPage(QWidget):
 
         self.build_ui()
         self.setup_shortcuts()
+        # Finite, replaceable work: one GUI-thread decode per event-loop turn.
+        self._page_load_timer = QTimer(self)
+        self._page_load_timer.setSingleShot(True)
+        self._page_load_timer.timeout.connect(self._load_next_nearby_page)
+        self._nearby_timer = QTimer(self)
+        self._nearby_timer.setSingleShot(True)
+        self._nearby_timer.setInterval(25)
+        self._nearby_timer.timeout.connect(self._queue_nearby_pages)
+
 
     # ========================================================
     # BUILD UI
@@ -613,6 +649,9 @@ class ComicReaderPage(QWidget):
         self.manhwa_scroll.verticalScrollBar().valueChanged.connect(
             self.on_manhwa_scroll
         )
+        self.manhwa_scroll.verticalScrollBar().rangeChanged.connect(
+            self._strip_range_changed
+        )
 
         # ====================================================
         # ADD READERS
@@ -872,6 +911,9 @@ class ComicReaderPage(QWidget):
     def cancel_quality_render(self):
 
         self.quality_render_timer.stop()
+        if hasattr(self, "_page_load_timer"):
+            self._page_load_timer.stop()
+            self._pending_pages = []
 
         # Invalidate any page-by-page Manhwa
         # refinement that is still running.
@@ -993,7 +1035,7 @@ class ComicReaderPage(QWidget):
 
         elif not self.is_paged():
 
-            if self.manhwa_original_pixmaps:
+            if self.manhwa_page_labels:
 
                 self.apply_manhwa_zoom(
                     position=position,
@@ -1039,7 +1081,7 @@ class ComicReaderPage(QWidget):
 
         elif not self.is_paged():
 
-            if self.manhwa_original_pixmaps:
+            if self.manhwa_page_labels:
 
                 self.start_manhwa_quality_refinement()
 
@@ -1241,6 +1283,8 @@ class ComicReaderPage(QWidget):
         self.cancel_quality_render()
 
         self.book = book
+        self._comic_suspended = False
+        self._last_saved_progress = None
 
         # ====================================================
         # CLEAR OLD CACHE
@@ -1595,6 +1639,19 @@ class ComicReaderPage(QWidget):
                     chapter_path
                 )
             )
+            if self._archive_path != str(chapter_path) or self._comic_archive is None:
+                self._release_page_cache()
+                if self._comic_archive is not None:
+                    self._comic_archive.close()
+                self._comic_archive = zipfile.ZipFile(chapter_path, "r")
+                self._archive_path = str(chapter_path)
+                self._page_sizes = [
+                    read_cbz_page_size(self._comic_archive, name)
+                    for name in self.current_page_names
+                ]
+                self._failed_pages.clear()
+            self._comic_suspended = False
+
 
         except Exception as error:
 
@@ -1654,204 +1711,45 @@ class ComicReaderPage(QWidget):
     # ========================================================
 
     def show_manga_page(self):
-
         self.cancel_quality_render()
-
         if not self.current_page_names:
-
             return
-
-        self.current_page = max(
-            0,
-            min(
-                self.current_page,
-                len(
-                    self.current_page_names
-                ) - 1,
-            ),
-        )
-
-        chapter_path = (
-            self.current_chapter_path()
-        )
-
-        page_name = (
-            self.current_page_names[
-                self.current_page
-            ]
-        )
-
-        try:
-
-            image_data = read_cbz_page(
-                chapter_path,
-                page_name,
-            )
-
-            pixmap = QPixmap()
-
-            pixmap.loadFromData(
-                image_data
-            )
-
-        except Exception as error:
-
-            QMessageBox.warning(
-                self,
-                "Page Error",
-                (
-                    "Could not display "
-                    "this comic page."
-                    f"\n\n{error}"
-                ),
-            )
-
-            return
-
-        if pixmap.isNull():
-
-            return
-
-        # Keep full original quality in memory.
-        self.original_manga_pixmap = (
-            pixmap
-        )
-
-        # One Manga image is cheap enough to
-        # display with high quality immediately.
-        self.apply_manga_zoom(
-            smooth=True
-        )
-
+        self.current_page = max(0, min(self.current_page, len(self.current_page_names) - 1))
+        self.apply_manga_zoom(smooth=True)
         self.update_position_label()
+        self._queue_nearby_pages()
 
-    # ========================================================
-    # MANGA ZOOM
-    # ========================================================
-
-    def apply_manga_zoom(
-        self,
-        smooth=True,
-    ):
-
-        if (
-            self.original_manga_pixmap
-            is None
-        ):
-
+    def apply_manga_zoom(self, smooth=True):
+        if not self._page_sizes or self._comic_suspended:
             return
-
-        pixmap = (
-            self.original_manga_pixmap
-        )
-
-        viewport = (
-            self.manga_scroll
-            .viewport()
-            .size()
-        )
-
-        available_width = max(
-            100,
-            viewport.width() - 40,
-        )
-
-        available_height = max(
-            100,
-            viewport.height() - 40,
-        )
-
-        original_width = (
-            pixmap.width()
-        )
-
-        original_height = (
-            pixmap.height()
-        )
-
-        if (
-            original_width <= 0
-            or original_height <= 0
-        ):
-
+        dimensions = self._page_sizes[self.current_page]
+        if dimensions is None:
+            self.manga_image.clear()
+            self.manga_image.setText("Could not display this comic page.")
+            self.original_manga_pixmap = None
             return
-
-        # ====================================================
-        # CALCULATE 100% FIT SIZE
-        # ====================================================
-
-        fit_scale = min(
-            available_width
-            / original_width,
-            available_height
-            / original_height,
-        )
-
-        base_width = max(
-            1,
-            int(
-                original_width
-                * fit_scale
-            ),
-        )
-
-        base_height = max(
-            1,
-            int(
-                original_height
-                * fit_scale
-            ),
-        )
-
-        # ====================================================
-        # USER ZOOM
-        # ====================================================
-
-        zoom_factor = (
-            self.zoom_percent
-            / 100.0
-        )
-
-        target_width = max(
-            1,
-            int(
-                base_width
-                * zoom_factor
-            ),
-        )
-
-        target_height = max(
-            1,
-            int(
-                base_height
-                * zoom_factor
-            ),
-        )
-
-        transformation = (
-            Qt.SmoothTransformation
-            if smooth
-            else Qt.FastTransformation
-        )
-
-        scaled_pixmap = pixmap.scaled(
-            target_width,
-            target_height,
-            Qt.KeepAspectRatio,
-            transformation,
-        )
-
-        self.manga_image.setPixmap(
-            scaled_pixmap
-        )
-
-        self.manga_image.setFixedSize(
-            scaled_pixmap.size()
-        )
-
-    # ========================================================
-    # CLEAR MANHWA WIDGETS
-    # ========================================================
+        width, height = dimensions
+        viewport = self.manga_scroll.viewport().size()
+        fit = min(max(100, viewport.width() - 40) / width,
+                  max(100, viewport.height() - 40) / height)
+        factor = self.zoom_percent / 100.0
+        target = (max(1, int(max(1, int(width * fit)) * factor)),
+                  max(1, int(max(1, int(height * fit)) * factor)))
+        self._manga_target = target
+        self._visible_pages = {self.current_page}
+        keep = set(range(max(0, self.current_page - 1),
+                         min(len(self.current_page_names), self.current_page + 2)))
+        self._set_page_window(keep)
+        pixmap = self._page_pixmap(self.current_page, *target, required=True)
+        if pixmap is None:
+            self.manga_image.clear()
+            self.manga_image.setText("Could not display this comic page.")
+            self.original_manga_pixmap = None
+            return
+        # Compatibility with the zoom controls: this is display-sized, not an original.
+        self.original_manga_pixmap = pixmap
+        self.manga_image.setPixmap(pixmap)
+        self.manga_image.setFixedSize(*target)
 
     def clear_manhwa_widgets(self):
 
@@ -1874,28 +1772,13 @@ class ComicReaderPage(QWidget):
     # ========================================================
 
     def clear_manhwa_cache(self):
-
         self.cancel_quality_render()
-
+        self._release_page_cache()
         self.clear_manhwa_widgets()
-
-        self.manhwa_original_pixmaps = []
-
         self.manhwa_page_labels = []
-
-        self.cached_manhwa_chapter_path = (
-            None
-        )
-
-        self.current_manhwa_render_width = (
-            None
-        )
-
+        self.cached_manhwa_chapter_path = None
+        self.current_manhwa_render_width = None
         self.quality_refine_index = 0
-
-    # ========================================================
-    # MANHWA POSITION
-    # ========================================================
 
     def get_manhwa_scroll_position(self):
 
@@ -1960,350 +1843,200 @@ class ComicReaderPage(QWidget):
     # LOAD MANHWA CHAPTER
     # ========================================================
 
-    def load_manhwa_chapter(
-        self,
-        position=0.0,
-    ):
-
-        position = max(
-            0.0,
-            min(
-                float(position),
-                1.0,
-            ),
-        )
-
-        self.is_restoring_scroll = True
-
-        chapter_path = (
-            self.current_chapter_path()
-        )
-
-        chapter_path_string = str(
-            chapter_path
-        )
-
-        # ====================================================
-        # CHAPTER CHANGED
-        # ====================================================
-
-        if (
-            self.cached_manhwa_chapter_path
-            != chapter_path_string
-        ):
-
+    def load_manhwa_chapter(self, position=0.0):
+        position = max(0.0, min(float(position), 1.0))
+        chapter_path = str(self.current_chapter_path())
+        if self.cached_manhwa_chapter_path != chapter_path:
             self.clear_manhwa_cache()
-
-            self.cached_manhwa_chapter_path = (
-                chapter_path_string
-            )
-
-            # =================================================
-            # DECODE EACH CBZ IMAGE ONCE
-            # =================================================
-
-            for page_name in (
-                self.current_page_names
-            ):
-
-                try:
-
-                    image_data = read_cbz_page(
-                        chapter_path,
-                        page_name,
-                    )
-
-                    pixmap = QPixmap()
-
-                    pixmap.loadFromData(
-                        image_data
-                    )
-
-                    if pixmap.isNull():
-
-                        continue
-
-                    label = QLabel()
-
-                    label.setAlignment(
-                        Qt.AlignCenter
-                    )
-
-                    self.manhwa_original_pixmaps.append(
-                        pixmap
-                    )
-
-                    self.manhwa_page_labels.append(
-                        label
-                    )
-
-                    self.manhwa_layout.addWidget(
-                        label,
-                        0,
-                        Qt.AlignHCenter,
-                    )
-
-                except Exception:
-
-                    continue
-
+            self.cached_manhwa_chapter_path = chapter_path
+            for dimensions in self._page_sizes:
+                label = QLabel(self.manhwa_container)
+                label.setAlignment(Qt.AlignCenter)
+                if dimensions is None:
+                    label.setText("Could not display this comic page.")
+                self.manhwa_page_labels.append(label)
+                self.manhwa_layout.addWidget(label, 0, Qt.AlignHCenter)
             self.manhwa_layout.addStretch()
+        self.apply_manhwa_zoom(position=position)
 
-        # ====================================================
-        # QUICK INITIAL DISPLAY
-        # ====================================================
-
-        self.apply_manhwa_zoom(
-            position=position,
-            smooth=False,
-        )
-
-        # Then refine to smooth quality once the
-        # initial layout has settled.
-        self.quality_render_timer.start()
-
-    # ========================================================
-    # MANHWA ZOOM
-    # ========================================================
-
-    def apply_manhwa_zoom(
-        self,
-        position=None,
-        smooth=False,
-    ):
-
-        if not self.manhwa_original_pixmaps:
-
+    def apply_manhwa_zoom(self, position=None, smooth=False):
+        if not self.manhwa_page_labels or self._comic_suspended:
             self.is_restoring_scroll = False
-
             return
-
         if position is None:
-
-            position = (
-                self.get_manhwa_scroll_position()
-            )
-
-        position = max(
-            0.0,
-            min(
-                float(position),
-                1.0,
-            ),
-        )
-
+            position = self.get_manhwa_scroll_position()
         self.is_restoring_scroll = True
-
-        target_width = (
-            self.get_manhwa_target_width()
-        )
-
-        transformation = (
-            Qt.SmoothTransformation
-            if smooth
-            else Qt.FastTransformation
-        )
-
-        # ====================================================
-        # SCALE ORIGINAL CACHED IMAGES
-        # ====================================================
-
-        for (
-            original_pixmap,
-            label,
-        ) in zip(
-            self.manhwa_original_pixmaps,
-            self.manhwa_page_labels,
-        ):
-
-            scaled = (
-                original_pixmap.scaledToWidth(
-                    target_width,
-                    transformation,
-                )
-            )
-
-            label.setPixmap(
-                scaled
-            )
-
-            label.setFixedSize(
-                scaled.size()
-            )
-
-        self.current_manhwa_render_width = (
-            target_width
-        )
-
-        self.manhwa_container.adjustSize()
-
-        QTimer.singleShot(
-            0,
-            lambda: (
-                self.restore_manhwa_position(
-                    position
-                )
-            ),
-        )
-
+        self._requested_strip_position = max(0.0, min(float(position), 1.0))
+        width = self.get_manhwa_target_width()
+        if width != self.current_manhwa_render_width:
+            self._release_page_cache()
+            self._setting_strip_geometry = True
+            for index, label in enumerate(self.manhwa_page_labels):
+                natural_width, natural_height = self._page_sizes[index] or (900, 1200)
+                label.setFixedSize(width, max(1, round(natural_height * width / natural_width)))
+            self.current_manhwa_render_width = width
+            self.manhwa_layout.activate()
+            self.manhwa_container.adjustSize()
+            self._setting_strip_geometry = False
+        generation = self.render_generation
+        QTimer.singleShot(0, lambda: self.restore_manhwa_position(
+            self._requested_strip_position
+        ) if generation == self.render_generation and not self._comic_suspended else None)
         self.update_position_label()
 
-    # ========================================================
-    # START MANHWA HIGH QUALITY PASS
-    # ========================================================
-
     def start_manhwa_quality_refinement(self):
-        """
-        Upgrade the fast Manhwa preview to
-        SmoothTransformation one page at a time.
+        # Only visible/nearby pages need rendering, including after zoom changes.
+        self._queue_nearby_pages()
 
-        This avoids one large UI freeze.
-        """
+    def _release_page_cache(self):
+        if hasattr(self, "_page_load_timer"):
+            self._page_load_timer.stop()
+            self._nearby_timer.stop()
+        self._pending_pages = []
+        self._keep_pages = set()
+        self._visible_pages = set()
+        self._page_cache.clear()
+        self._page_cache_sizes.clear()
+        self._page_cache_bytes = 0
+        self.original_manga_pixmap = None
+        if hasattr(self, "manga_image"):
+            self.manga_image.clear()
+        for label in self.manhwa_page_labels:
+            label.clear()
+        self._failed_pages.clear()
 
-        if not self.manhwa_original_pixmaps:
+    def _evict_page(self, index):
+        pixmap = self._page_cache.pop(index)
+        self._page_cache_sizes.pop(index, None)
+        self._page_cache_bytes -= pixmap.width() * pixmap.height() * 4
+        if index < len(self.manhwa_page_labels):
+            self.manhwa_page_labels[index].clear()
 
+    def _set_page_window(self, keep):
+        self._keep_pages = keep
+        for index in list(self._page_cache):
+            if index not in keep:
+                self._evict_page(index)
+        self._pending_pages = []
+        self._page_load_timer.stop()
+
+    def _page_pixmap(self, index, width, height, required=False):
+        dpr = max(1.0, self.devicePixelRatioF())
+        physical = QSize(ceil(width * dpr), ceil(height * dpr))
+        cached = self._page_cache.get(index)
+        if cached is not None:
+            if self._page_cache_sizes.get(index) == (physical.width(), physical.height(), dpr):
+                self._page_cache.move_to_end(index)
+                return cached
+            self._evict_page(index)
+        if index in self._failed_pages or self._comic_archive is None:
+            return None
+        cost = physical.width() * physical.height() * 4
+        # Prefetch is optional; never crowd out visible pages to fill the margin.
+        for victim in list(self._page_cache):
+            if self._page_cache_bytes + cost <= self.PAGE_CACHE_BYTES:
+                break
+            if victim not in self._visible_pages:
+                self._evict_page(victim)
+        if not required and self._page_cache_bytes + cost > self.PAGE_CACHE_BYTES:
+            return None
+        try:
+            data = QByteArray(read_cbz_page(self.current_chapter_path(),
+                                           self.current_page_names[index],
+                                           archive=self._comic_archive))
+            buffer = QBuffer(data)
+            buffer.open(QIODevice.ReadOnly)
+            reader = QImageReader(buffer)
+            natural = reader.size()
+            if natural.isValid():
+                decode = natural.scaled(physical * 2, Qt.KeepAspectRatio)
+                if decode.width() < natural.width():
+                    reader.setScaledSize(decode)
+            image = reader.read()
+            if image.isNull():
+                raise ValueError("Invalid comic image")
+            pixmap = QPixmap.fromImage(image).scaled(
+                physical, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap.setDevicePixelRatio(dpr)
+        except Exception:
+            self._failed_pages.add(index)
+            if index < len(self.manhwa_page_labels):
+                self.manhwa_page_labels[index].setText("Could not display this comic page.")
+            return None
+        self._page_cache[index] = pixmap
+        self._page_cache_sizes[index] = (physical.width(), physical.height(), dpr)
+        self._page_cache_bytes += pixmap.width() * pixmap.height() * 4
+        return pixmap
+
+    def _queue_nearby_pages(self):
+        if self._comic_suspended or self.book is None or not self._page_sizes:
             return
+        if self.is_paged():
+            visible = {self.current_page}
+            candidates = list(range(max(0, self.current_page - 1),
+                                    min(len(self._page_sizes), self.current_page + 2)))
+        else:
+            if self.is_restoring_scroll:
+                return
+            top = self.manhwa_scroll.verticalScrollBar().value()
+            height = self.manhwa_scroll.viewport().height()
+            visible = {i for i, label in enumerate(self.manhwa_page_labels)
+                       if label.y() < top + height and label.y() + label.height() > top}
+            center = top + height / 2
+            candidates = [i for i, label in enumerate(self.manhwa_page_labels)
+                          if label.y() < top + height * 2
+                          and label.y() + label.height() > top - height]
+            candidates.sort(key=lambda i: (i not in visible,
+                            abs(self.manhwa_page_labels[i].y() +
+                                self.manhwa_page_labels[i].height() / 2 - center)))
+            candidates = candidates[:max(self.NEARBY_PAGE_LIMIT, len(visible))]
+        self._visible_pages = visible
+        self._set_page_window(set(candidates))
+        self._pending_pages = sorted(candidates, key=lambda i: i not in visible)
+        if self._pending_pages:
+            self._page_load_timer.start(0)
 
-        # Cancel any older refinement.
-        self.render_generation += 1
-
-        generation = (
-            self.render_generation
-        )
-
-        self.quality_refine_index = 0
-
-        target_width = (
-            self.get_manhwa_target_width()
-        )
-
-        self.current_manhwa_render_width = (
-            target_width
-        )
-
-        self.refine_next_manhwa_page(
-            generation,
-            target_width,
-        )
-
-    # ========================================================
-    # REFINE ONE MANHWA PAGE
-    # ========================================================
-
-    def refine_next_manhwa_page(
-        self,
-        generation,
-        target_width,
-    ):
-        """
-        Render one page at high quality, then
-        return control to Qt before doing the next.
-
-        This keeps scrolling and controls responsive.
-        """
-
-        # A new zoom operation started.
-        if (
-            generation
-            != self.render_generation
-        ):
-
+    def _load_next_nearby_page(self):
+        if self._comic_suspended or not self._pending_pages:
             return
+        index = self._pending_pages.pop(0)
+        if index in self._keep_pages:
+            if self.is_paged():
+                width, height = self._manga_target
+                # Neighbor aspect ratios may differ from the current page.
+                dimensions = self._page_sizes[index]
+                if dimensions:
+                    natural_width, natural_height = dimensions
+                    viewport = self.manga_scroll.viewport().size()
+                    fit = min(max(100, viewport.width() - 40) / natural_width,
+                              max(100, viewport.height() - 40) / natural_height)
+                    width = max(1, int(max(1, int(natural_width * fit)) * self.zoom_percent / 100))
+                    height = max(1, int(max(1, int(natural_height * fit)) * self.zoom_percent / 100))
+                self._page_pixmap(index, width, height, required=index in self._visible_pages)
+            else:
+                label = self.manhwa_page_labels[index]
+                pixmap = self._page_pixmap(index, label.width(), label.height(),
+                                           required=index in self._visible_pages)
+                if pixmap is not None:
+                    label.setPixmap(pixmap)
+        if self._pending_pages:
+            self._page_load_timer.start(0)
 
-        # Zoom changed again.
-        if (
-            target_width
-            != self.get_manhwa_target_width()
-        ):
+    def _strip_range_changed(self, _minimum, _maximum):
+        if (self.is_restoring_scroll and not self._setting_strip_geometry
+                and not self._comic_suspended and not self.is_paged()):
+            self.restore_manhwa_position(self._requested_strip_position)
 
+    def restore_manhwa_position(self, position):
+        scroll_bar = self.manhwa_scroll.verticalScrollBar()
+        # QScrollArea updates its range after the placeholder layout event.
+        # Keep the requested fraction until that event, rather than saving 0.
+        content_height = self.manhwa_layout.minimumSize().height()
+        if scroll_bar.maximum() == 0 and content_height > self.manhwa_scroll.viewport().height():
             return
-
-        if (
-            self.quality_refine_index
-            >= len(
-                self.manhwa_original_pixmaps
-            )
-        ):
-
-            return
-
-        index = (
-            self.quality_refine_index
-        )
-
-        original_pixmap = (
-            self.manhwa_original_pixmaps[
-                index
-            ]
-        )
-
-        label = (
-            self.manhwa_page_labels[
-                index
-            ]
-        )
-
-        # ====================================================
-        # HIGH QUALITY SCALE FROM ORIGINAL
-        # ====================================================
-
-        scaled = (
-            original_pixmap.scaledToWidth(
-                target_width,
-                Qt.SmoothTransformation,
-            )
-        )
-
-        label.setPixmap(
-            scaled
-        )
-
-        label.setFixedSize(
-            scaled.size()
-        )
-
-        self.quality_refine_index += 1
-
-        # Let Qt process scrolling, painting and input
-        # before processing the next page.
-        QTimer.singleShot(
-            1,
-            lambda: (
-                self.refine_next_manhwa_page(
-                    generation,
-                    target_width,
-                )
-            ),
-        )
-
-    # ========================================================
-    # RESTORE MANHWA POSITION
-    # ========================================================
-
-    def restore_manhwa_position(
-        self,
-        position,
-    ):
-
-        scroll_bar = (
-            self.manhwa_scroll
-            .verticalScrollBar()
-        )
-
-        value = int(
-            scroll_bar.maximum()
-            * position
-        )
-
-        scroll_bar.setValue(
-            value
-        )
-
+        scroll_bar.setValue(int(scroll_bar.maximum() * position))
         self.is_restoring_scroll = False
-
-    # ========================================================
-    # MANHWA SCROLL
-    # ========================================================
+        self._queue_nearby_pages()
 
     def on_manhwa_scroll(
         self,
@@ -2318,10 +2051,13 @@ class ComicReaderPage(QWidget):
 
             return
 
-        if self.book is None:
+        if self.book is None or self._comic_suspended:
 
             return
 
+        self._page_load_timer.stop()
+        self._pending_pages = []
+        self._nearby_timer.start()
         self.scroll_save_timer.start()
 
     # ========================================================
@@ -2675,7 +2411,7 @@ class ComicReaderPage(QWidget):
 
     def save_current_progress(self):
 
-        if self.book is None:
+        if self.book is None or self._comic_suspended:
 
             return
 
@@ -2716,17 +2452,15 @@ class ComicReaderPage(QWidget):
 
         else:
 
-            position = (
-                self.get_manhwa_scroll_position()
-            )
+            position = (self._requested_strip_position if self.is_restoring_scroll
+                        else self.get_manhwa_scroll_position())
 
-        save_progress(
-            book_id=self.book[
-                "id"
-            ],
-            chapter_index=self.current_chapter,
-            position=position,
-        )
+        state = (self.book["id"], self.current_chapter, position)
+        if state == self._last_saved_progress:
+            return
+        save_progress(book_id=state[0], chapter_index=state[1], position=state[2])
+        # Only remember successful saves; failures must remain retryable.
+        self._last_saved_progress = state
 
     # ========================================================
     # WINDOW RESIZE
@@ -2741,7 +2475,7 @@ class ComicReaderPage(QWidget):
             event
         )
 
-        if self.book is None:
+        if self.book is None or self._comic_suspended:
 
             return
 
@@ -2753,7 +2487,7 @@ class ComicReaderPage(QWidget):
 
     def apply_resize_render(self):
 
-        if self.book is None:
+        if self.book is None or self._comic_suspended:
 
             return
 
@@ -2780,7 +2514,7 @@ class ComicReaderPage(QWidget):
 
         elif not self.is_paged():
 
-            if self.manhwa_original_pixmaps:
+            if self.manhwa_page_labels:
 
                 position = (
                     self.get_manhwa_scroll_position()
@@ -2827,7 +2561,35 @@ class ComicReaderPage(QWidget):
         self.render_generation += 1
 
         self.save_current_progress()
+        self._resume_position = (self._requested_strip_position if self.is_restoring_scroll
+                                 else self.get_manhwa_scroll_position())
+        self._comic_suspended = True
+        self.clear_manhwa_cache()
+        if self._comic_archive is not None:
+            self._comic_archive.close()
+            self._comic_archive = None
+        self._archive_path = None
+        self._page_sizes = []
 
         super().hideEvent(
             event
         )
+
+    def event(self, event):
+        result = super().event(event)
+        if (event.type() == QEvent.Type.DevicePixelRatioChange
+                and getattr(self, "book", None) is not None
+                and not self._comic_suspended):
+            self.resize_render_timer.start()
+        return result
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.book is not None and self._comic_suspended:
+            self._comic_suspended = False
+            position = self._resume_position
+            if self.is_paged() and len(self.current_page_names) > 1:
+                position = self.current_page / (len(self.current_page_names) - 1)
+            self.load_current_chapter(position)
+        elif self.book is not None:
+            self._nearby_timer.start()

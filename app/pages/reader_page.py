@@ -440,12 +440,15 @@ class ReaderPage(QWidget):
         super().__init__()
 
         self.book = None
+        self._last_saved_progress = None
 
         self.chapters = []
 
         self.current_chapter = 0
 
         self.is_restoring_scroll = False
+        self._pending_chapter_position = None
+        self._pending_chapter_save = False
 
         self._render_generation = 0
 
@@ -1656,6 +1659,9 @@ class ReaderPage(QWidget):
 
         self.reader.verticalScrollBar().valueChanged.connect(
             self.on_scroll_changed
+        )
+        self.reader.verticalScrollBar().rangeChanged.connect(
+            self.on_document_range_changed
         )
 
         body.addWidget(
@@ -3835,6 +3841,7 @@ class ReaderPage(QWidget):
         if self.book is not None:
 
             self.save_current_progress()
+            self.release_book_content()
 
         self.scroll_save_timer.stop()
 
@@ -3843,6 +3850,7 @@ class ReaderPage(QWidget):
         self.book = (
             book
         )
+        self._last_saved_progress = None
 
         self.read_saved_style()
 
@@ -4136,6 +4144,8 @@ class ReaderPage(QWidget):
         )
 
         self.is_restoring_scroll = True
+        self._pending_chapter_position = position
+        self._pending_chapter_save = save_after
 
         chapter = (
             self.chapters[
@@ -4205,8 +4215,7 @@ class ReaderPage(QWidget):
 
         QTimer.singleShot(
             0,
-            lambda:
-            self.finish_chapter_display(
+            lambda: self.finish_chapter_display(
                 generation,
                 position,
                 save_after,
@@ -4236,6 +4245,14 @@ class ReaderPage(QWidget):
             self.reader.verticalScrollBar()
         )
 
+        # The document can already have its final height while QTextEdit's
+        # scrollbar still has the pre-scrollbar-width layout. Wait for its
+        # rangeChanged notification instead of saving an incorrect fraction.
+        height = self.reader.document().size().height()
+        maximum = max(0, math.ceil(height) - self.reader.viewport().height())
+        if abs(bar.maximum() - maximum) > 1:
+            return
+
         bar.setValue(
             round(
                 bar.maximum()
@@ -4250,6 +4267,8 @@ class ReaderPage(QWidget):
         )
 
         self.is_restoring_scroll = False
+        self._pending_chapter_position = None
+        self._pending_chapter_save = False
 
         self.update_progress_bar()
 
@@ -4260,6 +4279,16 @@ class ReaderPage(QWidget):
     # ========================================================
     # CURRENT SCROLL POSITION
     # ========================================================
+
+    def on_document_range_changed(self, _minimum, _maximum):
+        if self.is_restoring_scroll and self._pending_chapter_position is not None:
+            generation = self._render_generation
+            position = self._pending_chapter_position
+            save_after = self._pending_chapter_save
+            QTimer.singleShot(
+                0,
+                lambda: self.finish_chapter_display(generation, position, save_after),
+            )
 
     def get_current_scroll_position(
         self,
@@ -4415,22 +4444,61 @@ class ReaderPage(QWidget):
         if (
             self.book is None
             or not self.chapters
-            or self.is_restoring_scroll
         ):
 
             return
 
-        save_progress(
-            book_id=self.book[
-                "id"
-            ],
-            chapter_index=(
-                self.current_chapter
-            ),
-            position=(
-                self.get_current_scroll_position()
-            ),
+        state = (
+            self.book["id"], self.current_chapter,
+            self._pending_chapter_position
+            if self.is_restoring_scroll
+            else self.get_current_scroll_position(),
         )
+        if state == self._last_saved_progress:
+            return
+        save_progress(book_id=state[0], chapter_index=state[1], position=state[2])
+        # Only remember successful saves; failures must remain retryable.
+        self._last_saved_progress = state
+
+    # ========================================================
+    # RELEASE INACTIVE BOOK
+    # ========================================================
+
+    def release_book_content(self):
+        """Discard only this book's content, after its final progress save."""
+        if self.book is None:
+            return
+        self._render_generation += 1
+        self.book = None
+        self.chapters = []
+        self.current_chapter = 0
+        self._bookmarks = {}
+        self._epub_file = None
+        self._epub_images.clear()
+        self._epub_image_index.clear()
+        self._decoded_images.clear()
+        self._image_serial = 0
+        self._last_saved_progress = None
+        self._pending_chapter_position = None
+        self._pending_chapter_save = False
+        self.is_restoring_scroll = False
+        blocked = self.toc_list.blockSignals(True)
+        self.toc_list.clear()
+        self.toc_list.blockSignals(blocked)
+        self.cover.clear()
+
+        # QTextDocument also caches image resources; clearing HTML alone
+        # does not reliably release those resources between books.
+        old_document = self.reader.document()
+        document = QTextDocument(self.reader)
+        document.setDefaultFont(old_document.defaultFont())
+        document.setDefaultStyleSheet(old_document.defaultStyleSheet())
+        document.setDocumentMargin(old_document.documentMargin())
+        old_document.setParent(None)
+        self.reader.setDocument(document)
+        old_document.deleteLater()
+        self.scroll_save_timer.stop()
+        self.style_timer.stop()
 
     # ========================================================
     # BEGIN SEEK
@@ -5872,6 +5940,8 @@ class ReaderPage(QWidget):
         self.apply_keep_screen_on(
             False
         )
+
+        self.release_book_content()
 
         if self._fullscreen_by_reader:
 

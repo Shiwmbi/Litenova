@@ -48,8 +48,6 @@ def get_progress(
     book_id,
 ):
 
-    ensure_progress_table()
-
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -106,8 +104,6 @@ def save_progress(
     position=0.0,
 ):
 
-    ensure_progress_table()
-
     try:
         chapter_index = int(
             chapter_index
@@ -141,42 +137,27 @@ def save_progress(
     connection = get_connection()
     cursor = connection.cursor()
 
-    cursor.execute(
-        """
-        INSERT INTO reading_progress (
-            book_id,
-            chapter_index,
-            position
-        )
-        VALUES (?, ?, ?)
+    try:
+        with connection:
+            cursor.execute(
+                """
+                INSERT INTO reading_progress (book_id, chapter_index, position)
+                VALUES (?, ?, ?)
+                ON CONFLICT(book_id) DO UPDATE SET
+                    chapter_index = excluded.chapter_index,
+                    position = excluded.position
+                """,
+                (book_id, chapter_index, position),
+            )
+            record_history(
+                book_id=book_id,
+                chapter_index=chapter_index,
+                position=position,
+                connection=connection,
+            )
+    finally:
+        connection.close()
 
-        ON CONFLICT(book_id)
-        DO UPDATE SET
-            chapter_index =
-                excluded.chapter_index,
-
-            position =
-                excluded.position
-        """,
-        (
-            book_id,
-            chapter_index,
-            position,
-        ),
-    )
-
-    connection.commit()
-    connection.close()
-
-    # ========================================================
-    # READING HISTORY
-    # ========================================================
-
-    record_history(
-        book_id=book_id,
-        chapter_index=chapter_index,
-        position=position,
-    )
 
 
 # ============================================================
@@ -186,8 +167,6 @@ def save_progress(
 def delete_progress(
     book_id,
 ):
-
-    ensure_progress_table()
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -204,3 +183,15 @@ def delete_progress(
 
     connection.commit()
     connection.close()
+
+
+def get_progress_by_book_id():
+    """Load Library progress in one query instead of two connections per book."""
+    connection = get_connection()
+    try:
+        rows = connection.execute(
+            "SELECT book_id, position FROM reading_progress"
+        ).fetchall()
+        return {row["book_id"]: row for row in rows}
+    finally:
+        connection.close()

@@ -737,7 +737,12 @@ class BrowsePage(QWidget):
 
         self.apply_page_style()
 
-        self.load_directory()
+        self._directory_loaded = False
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._directory_loaded:
+            self.load_directory()
 
     # ========================================================
     # BUILD UI
@@ -2035,6 +2040,9 @@ class BrowsePage(QWidget):
     # ========================================================
 
     def load_directory(self):
+
+        # Navigation/import may load a folder before the first show.
+        self._directory_loaded = True
 
         self.address_input.setText(
             str(self.current_directory)

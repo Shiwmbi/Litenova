@@ -291,3 +291,10 @@ def initialize_database():
     connection.commit()
 
     connection.close()
+
+    # Initialize repository-owned tables once, including after data restore/reset.
+    from app.database.history_repository import ensure_history_table
+    from app.database.custom_categories_repository import ensure_custom_category_tables
+
+    ensure_history_table()
+    ensure_custom_category_tables()

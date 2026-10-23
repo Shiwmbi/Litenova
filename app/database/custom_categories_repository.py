@@ -71,8 +71,6 @@ def create_custom_category(
     name,
 ):
 
-    ensure_custom_category_tables()
-
     name = str(
         name
     ).strip()
@@ -128,8 +126,6 @@ def create_custom_category(
 
 def get_custom_categories():
 
-    ensure_custom_category_tables()
-
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -175,8 +171,6 @@ def get_custom_category(
     category_id,
 ):
 
-    ensure_custom_category_tables()
-
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -205,8 +199,6 @@ def get_custom_category(
 def get_book_custom_category(
     book_id,
 ):
-
-    ensure_custom_category_tables()
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -268,8 +260,6 @@ def move_book_to_custom_category(
         Favorites
             Novel A
     """
-
-    ensure_custom_category_tables()
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -378,8 +368,6 @@ def remove_book_from_custom_category(
     The actual book remains in the Library.
     """
 
-    ensure_custom_category_tables()
-
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -404,8 +392,6 @@ def remove_book_from_custom_category(
 def get_books_in_custom_category(
     category_id,
 ):
-
-    ensure_custom_category_tables()
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -448,8 +434,6 @@ def get_uncategorized_books():
     any user-created Library category.
     """
 
-    ensure_custom_category_tables()
-
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -491,8 +475,6 @@ def delete_custom_category(
     Books inside it return to Uncategorized.
     The actual books are NOT deleted.
     """
-
-    ensure_custom_category_tables()
 
     connection = get_connection()
     cursor = connection.cursor()

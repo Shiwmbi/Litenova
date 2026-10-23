@@ -1,9 +1,11 @@
 """Litenova Library cards with readable book-type badges on grid covers."""
 
+from collections import OrderedDict
+from math import ceil
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal, QSize, QPoint, QRectF
-from PySide6.QtGui import QPixmap, QPainter, QPainterPath
+from PySide6.QtCore import Qt, Signal, QSize, QPoint, QRectF, QEvent
+from PySide6.QtGui import QPixmap, QPainter, QPainterPath, QImageReader
 from PySide6.QtWidgets import (
     QFrame, QWidget, QLabel, QPushButton, QToolButton,
     QHBoxLayout, QVBoxLayout, QMenu, QSizePolicy,
@@ -30,12 +32,16 @@ class BookCard(QFrame):
     remove_requested = Signal(object)
 
     COVER_RADIUS = 13
+    # Only rendered thumbnails are cached. Labels share their pixel storage.
+    _cover_cache = OrderedDict()
+    _cover_cache_bytes = 0
+    COVER_CACHE_BYTES = 16 * 1024 * 1024
+    COVER_CACHE_ENTRIES = 256
 
     def __init__(
         self, book, mode="grid", cover_width=200,
         progress=0.0, show_progress=True,
         parent=None,
-        original_cover=None,
     ):
         super().__init__(parent)
         self.book = book
@@ -45,13 +51,6 @@ class BookCard(QFrame):
         self.show_progress = show_progress
         self.setObjectName("libraryBookCard")
         self.setCursor(Qt.PointingHandCursor)
-        # Qt shares QPixmap pixel data between cards until modified. Reusing
-        # the image from the alternate view prevents disk reads on toggles.
-        self.original_cover = (
-            original_cover
-            if original_cover is not None
-            else self.load_original_cover()
-        )
         self.build_ui()
 
     def book_value(self, key, default=""):
@@ -64,36 +63,99 @@ class BookCard(QFrame):
             pass
         return default
 
-    def load_original_cover(self):
-        cover_path = self.book_value("cover_path")
-        if cover_path and Path(str(cover_path)).is_file():
-            return QPixmap(str(cover_path))
-        return QPixmap()
+    @staticmethod
+    def cover_file_signature(cover_path):
+        if not cover_path:
+            return None
+        path = Path(str(cover_path))
+        try:
+            stat = path.stat()
+            return (str(path), stat.st_mtime_ns, stat.st_size)
+        except (OSError, ValueError):
+            return None
 
     def create_rounded_cover(self, width, height):
-        """Clip the actual cover pixels, not just the QLabel border."""
-        if self.original_cover.isNull():
+        """Decode to physical display size; retain only the rounded thumbnail."""
+        signature = self.cover_file_signature(self.book_value("cover_path"))
+        if signature is None:
             return QPixmap()
-        scaled = self.original_cover.scaled(
-            width, height, Qt.KeepAspectRatioByExpanding,
+        dpr = max(1.0, self.devicePixelRatioF())
+        key = (signature, width, height, dpr)
+        cache = BookCard._cover_cache
+        cached = cache.get(key)
+        if cached is not None:
+            cache.move_to_end(key)
+            return cached
+
+        # Drop old versions of this file, without evicting other display sizes.
+        for old_key in list(cache):
+            if old_key[0][0] == signature[0] and old_key[0] != signature:
+                old = cache.pop(old_key)
+                BookCard._cover_cache_bytes -= old.width() * old.height() * 4
+
+        physical_size = QSize(ceil(width * dpr), ceil(height * dpr))
+        reader = QImageReader(signature[0])
+        source_size = reader.size()
+        if source_size.isValid():
+            # Some JPEG decoders sacrifice detail at the exact target size.
+            # Decode with modest headroom, then use Qt's smooth final scaling.
+            # Small covers keep their native pixels rather than being enlarged.
+            decode_size = source_size.scaled(
+                physical_size * 2, Qt.KeepAspectRatioByExpanding,
+            )
+            if decode_size.width() < source_size.width():
+                reader.setScaledSize(decode_size)
+        image = reader.read()
+        if image.isNull():
+            return QPixmap()
+        scaled = QPixmap.fromImage(image).scaled(
+            physical_size, Qt.KeepAspectRatioByExpanding,
             Qt.SmoothTransformation,
         )
-        x = max(0, (scaled.width() - width) // 2)
-        y = max(0, (scaled.height() - height) // 2)
-        cropped = scaled.copy(x, y, width, height)
-        result = QPixmap(width, height)
+        x = max(0, (scaled.width() - physical_size.width()) // 2)
+        y = max(0, (scaled.height() - physical_size.height()) // 2)
+        result = QPixmap(physical_size)
         result.fill(Qt.transparent)
         painter = QPainter(result)
         painter.setRenderHint(QPainter.Antialiasing, True)
         rounded_path = QPainterPath()
         rounded_path.addRoundedRect(
-            QRectF(0, 0, width, height),
-            self.COVER_RADIUS,
-            self.COVER_RADIUS,
+            QRectF(0, 0, physical_size.width(), physical_size.height()),
+            self.COVER_RADIUS * dpr, self.COVER_RADIUS * dpr,
         )
         painter.setClipPath(rounded_path)
-        painter.drawPixmap(0, 0, cropped)
+        painter.drawPixmap(0, 0, scaled, x, y,
+                           physical_size.width(), physical_size.height())
         painter.end()
+        result.setDevicePixelRatio(dpr)
+
+        cost = result.width() * result.height() * 4
+        if cost <= self.COVER_CACHE_BYTES:
+            while cache and (
+                BookCard._cover_cache_bytes + cost > self.COVER_CACHE_BYTES
+                or len(cache) >= self.COVER_CACHE_ENTRIES
+            ):
+                _, old = cache.popitem(last=False)
+                BookCard._cover_cache_bytes -= old.width() * old.height() * 4
+            cache[key] = result
+            BookCard._cover_cache_bytes += cost
+        return result
+
+    def update_cover_pixmap(self):
+        self._cover_dpr = self.devicePixelRatioF()
+        pixmap = self.create_rounded_cover(self.cover_width, self.cover_box.height())
+        self.cover_label.clear()
+        if pixmap.isNull():
+            self.cover_label.setText("NO COVER")
+        else:
+            self.cover_label.setPixmap(pixmap)
+
+    def event(self, event):
+        result = super().event(event)
+        if (event.type() in (QEvent.Type.Show, QEvent.Type.DevicePixelRatioChange)
+                and hasattr(self, "cover_label")
+                and self.devicePixelRatioF() != getattr(self, "_cover_dpr", None)):
+            self.update_cover_pixmap()
         return result
 
     def build_ui(self):
@@ -124,11 +186,7 @@ class BookCard(QFrame):
         self.cover_label.setGeometry(0, 0, self.cover_width, cover_height)
         self.cover_label.setAlignment(Qt.AlignCenter)
         self.cover_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        rounded_cover = self.create_rounded_cover(self.cover_width, cover_height)
-        if rounded_cover.isNull():
-            self.cover_label.setText("NO COVER")
-        else:
-            self.cover_label.setPixmap(rounded_cover)
+        self.update_cover_pixmap()
 
         percentage = self.progress * 100
         self.progress_badge = QLabel(f"{percentage:.1f}%", self.cover_box)

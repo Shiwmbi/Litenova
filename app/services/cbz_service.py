@@ -407,12 +407,16 @@ def read_cbz_metadata(cbz_path):
 def read_cbz_page(
     cbz_path,
     page_name,
+    archive=None,
 ):
     """
     Return the raw bytes for one comic page.
     """
 
     try:
+
+        if archive is not None:
+            return archive.read(page_name)
 
         with zipfile.ZipFile(
             cbz_path,
@@ -537,3 +541,15 @@ def validate_cbz(cbz_path):
         ),
         "pages": pages,
     }
+
+def read_cbz_page_size(archive, page_name):
+    """Read image-header dimensions without retaining decompressed pixels."""
+    try:
+        with archive.open(page_name) as stream:
+            with Image.open(stream) as image:
+                width, height = image.size
+                if width > 0 and height > 0:
+                    return width, height
+    except Exception:
+        pass
+    return None

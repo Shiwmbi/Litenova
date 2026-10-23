@@ -46,7 +46,6 @@ from PySide6.QtWidgets import (
 )
 
 from app.database.history_repository import (
-    ensure_history_table,
     get_history_entries,
     get_comic_chapter_count,
     delete_history_entry,
@@ -581,8 +580,6 @@ class HistoryPage(QWidget):
     def __init__(self):
         super().__init__()
 
-        ensure_history_table()
-
         self.entries = []
 
         self.rows = []
@@ -595,7 +592,6 @@ class HistoryPage(QWidget):
 
         self.apply_page_style()
 
-        self.refresh()
 
     # ========================================================
     # CREATE HEADER ICON BUTTON

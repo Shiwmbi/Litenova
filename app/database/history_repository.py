@@ -79,15 +79,16 @@ def record_history(
     book_id,
     chapter_index,
     position,
+    connection=None,
 ):
     """
     Record or update the reading-history entry for
     the current chapter.
     """
 
-    ensure_history_table()
-
-    connection = get_connection()
+    owns_connection = connection is None
+    if owns_connection:
+        connection = get_connection()
     cursor = connection.cursor()
 
     try:
@@ -154,8 +155,9 @@ def record_history(
         ),
     )
 
-    connection.commit()
-    connection.close()
+    if owns_connection:
+        connection.commit()
+        connection.close()
 
 
 # ============================================================
@@ -173,8 +175,6 @@ def get_history_entries():
         Chapter 2
         etc.
     """
-
-    ensure_history_table()
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -279,8 +279,6 @@ def delete_history_entry(
     history_id,
 ):
 
-    ensure_history_table()
-
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -304,8 +302,6 @@ def delete_history_entry(
 
 def clear_history():
 
-    ensure_history_table()
-
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -317,3 +313,18 @@ def clear_history():
 
     connection.commit()
     connection.close()
+
+
+def get_last_read_entries():
+    """Fetch only timestamps needed by Library, without History's book joins.
+
+    Keep timestamp conversion in Library so legacy naive timestamps and UTC
+    offsets retain exactly the same sorting semantics.
+    """
+    connection = get_connection()
+    try:
+        return connection.execute(
+            "SELECT DISTINCT book_id, last_read FROM reading_history"
+        ).fetchall()
+    finally:
+        connection.close()
