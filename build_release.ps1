@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "========================================"
-Write-Host " Litenova v3.0.1 Release Build"
+Write-Host " Litenova v3.0.2 Release Build"
 Write-Host "========================================"
 Write-Host ""
 
@@ -98,7 +98,7 @@ Remove-Item `
 # ============================================================
 
 Write-Host ""
-Write-Host "Building Litenova v3.0.1..."
+Write-Host "Building Litenova v3.0.2..."
 Write-Host ""
 
 & $Python -m PyInstaller `

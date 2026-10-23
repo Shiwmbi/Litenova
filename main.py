@@ -18,7 +18,7 @@ from app.services.theme_service import apply_theme
 # ============================================================
 
 APP_NAME = "Litenova"
-APP_VERSION = "3.0.1"
+APP_VERSION = "3.0.2"
 ORGANIZATION_NAME = "Litenova"
 
 

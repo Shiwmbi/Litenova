@@ -716,6 +716,7 @@ class DataOperationThread(QThread):
 class SettingsPage(QWidget):
 
     settings_changed = Signal()
+    check_updates_requested = Signal()
 
     def __init__(
         self,
@@ -1167,6 +1168,16 @@ class SettingsPage(QWidget):
 
         self.open_to.currentIndexChanged.connect(
             self.change_start_page
+        )
+
+        self.check_updates_button = self.action(
+            "Check Now",
+            self.check_updates_requested.emit,
+        )
+        self.general.add_row(
+            "Check for updates",
+            "Open the GitHub release page when an update is available",
+            self.check_updates_button,
         )
 
         # ====================================================

@@ -1,11 +1,22 @@
 import filecmp
+import json
+import sys
+import time
 from pathlib import Path
+from urllib.parse import urlsplit
+
+from packaging.version import Version, InvalidVersion
 
 from PySide6.QtCore import (
     QSize,
     QSettings,
     QTimer,
+    QUrl,
+    Qt,
 )
+
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -38,6 +49,7 @@ from app.database.custom_categories_repository import (
 
 
 WELCOME_VERSION = 1
+LATEST_RELEASE_API = "https://api.github.com/repos/Shiwmbi/Litenova/releases/latest"
 
 
 class MainWindow(QMainWindow):
@@ -64,6 +76,9 @@ class MainWindow(QMainWindow):
 
         self.reader_return_page = None
         self.startup_files = list(startup_files or [])
+        self._update_manager = None
+        self._update_reply = None
+        self._notified_update_versions = set()
 
         self.build_ui()
 
@@ -279,6 +294,9 @@ class MainWindow(QMainWindow):
         self.settings_page.settings_changed.connect(
             self.reader_page.reload_settings
         )
+        self.settings_page.check_updates_requested.connect(
+            lambda: self.check_for_updates(manual=True)
+        )
 
         # ====================================================
         # MAIN WINDOW
@@ -334,6 +352,144 @@ class MainWindow(QMainWindow):
         paths, self.startup_files = self.startup_files, []
         for argument in paths:
             self.open_external_file(argument)
+        QTimer.singleShot(3000, self.check_for_updates)
+
+    def check_for_updates(self, manual=False):
+        """Make one bounded asynchronous request; manual checks bypass the cache."""
+        settings = QSettings("Litenova", "Litenova")
+        now = int(time.time())
+        if not manual:
+            try:
+                last_check = int(settings.value("updates/last_check_utc", 0))
+            except (TypeError, ValueError, OverflowError):
+                last_check = 0
+            if 0 <= now - last_check < 86400 or self._update_reply is not None:
+                return
+
+        if self._update_reply is not None:
+            previous, self._update_reply = self._update_reply, None
+            previous.abort()
+
+        if self._update_manager is None:
+            self._update_manager = QNetworkAccessManager(self)
+        request = QNetworkRequest(QUrl(LATEST_RELEASE_API))
+        request.setRawHeader(b"Accept", b"application/vnd.github+json")
+        current = QApplication.applicationVersion()
+        request.setRawHeader(b"User-Agent", f"Litenova/{current}".encode("ascii"))
+        request.setTransferTimeout(10000)
+        # Cache attempts as well as successes so offline launches do not retry
+        # repeatedly. Manual checks always remain available.
+        settings.setValue("updates/last_check_utc", now)
+        reply = self._update_manager.get(request)
+        self._update_reply = reply
+        self.settings_page.check_updates_button.setEnabled(False)
+        timeout = QTimer(reply)
+        timeout.setSingleShot(True)
+        timeout.timeout.connect(reply.abort)
+        reply.finished.connect(timeout.stop)
+        reply.finished.connect(lambda: self._finish_update_check(reply, manual))
+        timeout.start(10000)
+
+    def _finish_update_check(self, reply, manual):
+        if reply is not self._update_reply:
+            reply.deleteLater()
+            return
+        self._update_reply = None
+        self.settings_page.check_updates_button.setEnabled(True)
+        failure_message = (
+            "Unable to check for updates right now.\n"
+            "Please check your internet connection and try again."
+        )
+        try:
+            status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
+            if status is not None and status != 200:
+                if status == 404:
+                    failure_message = (
+                        "The GitHub update information is not publicly available.\n"
+                        "The repository may be unavailable or private, or it may "
+                        "not have a published stable release yet. Please try again later."
+                    )
+                raise ValueError(f"HTTP {status}")
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                # Only the enum name is logged, never proxy URLs or credentials.
+                raise ValueError(f"network error: {reply.error().name}")
+            if status != 200:
+                raise ValueError("missing HTTP status")
+            raw = bytes(reply.readAll())
+            if len(raw) > 1024 * 1024:
+                raise ValueError("Unexpected release response size")
+            try:
+                release = json.loads(raw)
+            except (ValueError, UnicodeError) as error:
+                raise ValueError("invalid JSON") from error
+            self._show_update_result(release, manual)
+        except (ValueError, TypeError, KeyError, UnicodeError, InvalidVersion) as error:
+            if manual:
+                if not getattr(sys, "frozen", False):
+                    # Validation errors below contain fixed labels, not API data.
+                    print(f"Update check failed: {error}")
+                QMessageBox.information(
+                    self, "Updates",
+                    failure_message,
+                )
+        finally:
+            reply.deleteLater()
+
+    def _show_update_result(self, release, manual):
+        if not isinstance(release, dict) or release.get("draft") or release.get("prerelease"):
+            raise ValueError("Expected a stable release")
+        if "tag_name" not in release:
+            raise ValueError("missing tag_name")
+        if "html_url" not in release:
+            raise ValueError("missing html_url")
+        tag = release["tag_name"]
+        page = release["html_url"]
+        name = release.get("name", "")
+        if not isinstance(tag, str) or not isinstance(page, str) or not isinstance(name, (str, type(None))):
+            raise ValueError("Malformed release metadata")
+        current_text = QApplication.applicationVersion()
+        try:
+            latest = Version(tag.removeprefix("v"))
+            current = Version(current_text)
+        except InvalidVersion as error:
+            raise ValueError("malformed version") from error
+        if latest.is_prerelease or latest.is_devrelease:
+            raise ValueError("Expected a stable version")
+        url = urlsplit(page)
+        if (url.scheme != "https" or url.netloc != "github.com"
+                or not url.path.startswith("/Shiwmbi/Litenova/releases/tag/")
+                or url.query or url.fragment or "/../" in url.path):
+            raise ValueError("Unexpected release page")
+        if latest <= current:
+            if manual:
+                QMessageBox.information(
+                    self, "Updates",
+                    f"You're up to date.\n\nLitenova {current_text} is the latest version."
+                    if latest == current else
+                    f"You're up to date.\n\nLitenova {current_text} is newer than the latest release.",
+                )
+            return
+        if latest in self._notified_update_versions:
+            if manual:
+                QMessageBox.information(
+                    self, "Updates", f"Litenova {latest} is available. "
+                    "You have already been notified during this session.",
+                )
+            return
+        self._notified_update_versions.add(latest)
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Litenova Update")
+        dialog.setTextFormat(Qt.TextFormat.PlainText)
+        dialog.setText(
+            "A new version of Litenova is available.\n\n"
+            f"Current version: {current_text}\nLatest version: {latest}"
+        )
+        download = dialog.addButton("Download Update", QMessageBox.ButtonRole.AcceptRole)
+        later = dialog.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        dialog.setDefaultButton(later)
+        dialog.exec()
+        if dialog.clickedButton() is download:
+            QDesktopServices.openUrl(QUrl(page))
 
     def open_external_file(self, argument):
         """Import an Explorer request using the normal import service."""
