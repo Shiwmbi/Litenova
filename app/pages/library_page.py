@@ -14,6 +14,8 @@ Features:
 - Collapsible Display / Sort / Filters panel
 """
 
+from app.widgets.layout_helpers import WrapLayout, configure_combo, ElidedComboBox, persist_splitter
+
 import sys
 import re
 
@@ -51,6 +53,8 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QDialog,
     QMenu,
+    QSplitter,
+    QSizePolicy,
 )
 
 from app.database.custom_categories_repository import (
@@ -235,35 +239,62 @@ class DisplayToggle(QCheckBox):
         self.description = description
         self.setAccessibleName(title)
         self.setToolTip(description)
-        self.setFixedHeight(65)
+        self.setMinimumHeight(58)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.setCursor(Qt.PointingHandCursor)
         self.toggled.connect(lambda _checked: self.update())
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 6, 0, 6)
+        row.setSpacing(12)
+        labels = QVBoxLayout()
+        labels.setContentsMargins(0, 0, 0, 0)
+        labels.setSpacing(3)
+        self.title_label = QLabel(title, self)
+        self.description_label = QLabel(description, self)
+        for label in (self.title_label, self.description_label):
+            label.setWordWrap(True)
+            label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            labels.addWidget(label)
+        row.addLayout(labels, 1)
+        self.switch = _DisplaySwitch(self)
+        row.addWidget(self.switch, 0, Qt.AlignVCenter)
+        self.title_label.setStyleSheet("background: transparent; color: #e7e8f6; font-size: 13px;")
+        self.description_label.setStyleSheet("background: transparent; color: #aeb3c9; font-size: 11px;")
+
+    def sizeHint(self):
+        return self.layout().sizeHint().expandedTo(QSize(180, 58))
+
+    def minimumSizeHint(self):
+        return QSize(180, 58)
 
     def hitButton(self, position):
         return self.rect().contains(position)
+
+    def paintEvent(self, event):
+        # Child layouts own both text and switch geometry; Qt retains checkbox input.
+        pass
+
+
+class _DisplaySwitch(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setFixedSize(53, 30)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        parent.toggled.connect(self.update)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setPen(Qt.NoPen)
 
-        x = self.width() - 57
+        x = 0
         y = (self.height() - 30) / 2
-        painter.setBrush(QColor("#51527f" if self.isChecked() else "#303344"))
+        painter.setBrush(QColor("#51527f" if self.parentWidget().isChecked() else "#303344"))
         painter.drawRoundedRect(QRectF(x, y, 53, 30), 15, 15)
-        painter.setBrush(QColor("#c5c4fa" if self.isChecked() else "#858aa6"))
-        painter.drawEllipse(QRectF(x + (27 if self.isChecked() else 3), y + 3, 24, 24))
+        painter.setBrush(QColor("#c5c4fa" if self.parentWidget().isChecked() else "#858aa6"))
+        painter.drawEllipse(QRectF(x + (27 if self.parentWidget().isChecked() else 3), y + 3, 24, 24))
 
-        font = painter.font()
-        font.setPixelSize(14)
-        painter.setFont(font)
-        painter.setPen(QColor("#e7e8f6"))
-        painter.drawText(0, 25, self.title)
-
-        font.setPixelSize(12)
-        painter.setFont(font)
-        painter.setPen(QColor("#aeb3c9"))
-        painter.drawText(0, 46, self.description)
         painter.end()
 
 class LibraryPage(QWidget):
@@ -384,15 +415,13 @@ class LibraryPage(QWidget):
         )
 
         root.setContentsMargins(
-            21,
-            20,
-            14,
-            14,
+            16,
+            16,
+            16,
+            16,
         )
 
-        root.setSpacing(
-            13
-        )
+        root.setSpacing(12)
 
         # ====================================================
         # HEADER
@@ -493,10 +522,7 @@ class LibraryPage(QWidget):
             "Show / Hide Display Options"
         )
 
-        self.more_button.setFixedSize(
-            42,
-            42,
-        )
+        self.more_button.setFixedSize(34, 34)
 
         self.more_button.setCursor(
             Qt.PointingHandCursor
@@ -542,9 +568,7 @@ class LibraryPage(QWidget):
             "libraryAddFolder"
         )
 
-        self.new_category_button.setFixedHeight(
-            43
-        )
+        self.new_category_button.setMinimumHeight(36)
 
         self.new_category_button.setCursor(
             Qt.PointingHandCursor
@@ -554,9 +578,7 @@ class LibraryPage(QWidget):
             self.create_category
         )
 
-        header.addWidget(
-            self.new_category_button
-        )
+
 
         self.delete_category_button = QPushButton(
             "Delete Category"
@@ -566,9 +588,7 @@ class LibraryPage(QWidget):
             "libraryDeleteCategory"
         )
 
-        self.delete_category_button.setFixedHeight(
-            43
-        )
+        self.delete_category_button.setMinimumHeight(36)
 
         self.delete_category_button.setCursor(
             Qt.PointingHandCursor
@@ -582,29 +602,39 @@ class LibraryPage(QWidget):
             self.delete_selected_category
         )
 
-        header.addWidget(
-            self.delete_category_button
-        )
+
 
         root.addLayout(
             header
         )
+        category_actions = QWidget(self)
+        category_layout = WrapLayout(category_actions)
+        category_layout.addWidget(self.new_category_button)
+        category_layout.addWidget(self.delete_category_button)
+        header.insertWidget(1, category_actions)
+        header.setStretch(2, 1)
+
 
         # ====================================================
         # MAIN AREA
         # ====================================================
 
-        body = QHBoxLayout()
-
-        body.setSpacing(
-            13
-        )
+        body = QSplitter(Qt.Horizontal, self)
+        self.library_splitter = body
+        body.setObjectName("librarySplitter")
+        body.setChildrenCollapsible(False)
+        body.setHandleWidth(7)
+        body.setOpaqueResize(False)
+        body.setStyleSheet("QSplitter::handle { background: #252936; } QSplitter::handle:hover { background: #626783; }")
 
         # ====================================================
         # LEFT SIDE
         # ====================================================
 
-        left = QVBoxLayout()
+        left_panel = QWidget(body)
+        left_panel.setMinimumWidth(320)
+        left = QVBoxLayout(left_panel)
+        left.setContentsMargins(0, 0, 0, 0)
 
         left.setSpacing(
             12
@@ -620,19 +650,15 @@ class LibraryPage(QWidget):
         # CATEGORY SELECTOR
         # ====================================================
 
-        self.category_filter = QComboBox()
+        self.category_filter = ElidedComboBox()
 
         self.category_filter.setObjectName(
             "libraryCategory"
         )
 
-        self.category_filter.setMinimumWidth(
-            180
-        )
+        configure_combo(self.category_filter)
 
-        self.category_filter.setFixedHeight(
-            45
-        )
+        self.category_filter.setMinimumHeight(34)
 
         self.category_filter.currentIndexChanged.connect(
             self.category_filter_changed
@@ -666,9 +692,7 @@ class LibraryPage(QWidget):
             True
         )
 
-        self.search_input.setFixedHeight(
-            45
-        )
+        self.search_input.setMinimumHeight(34)
 
         self.search_input.textChanged.connect(
             self.search_changed
@@ -748,10 +772,7 @@ class LibraryPage(QWidget):
             1,
         )
 
-        body.addLayout(
-            left,
-            1,
-        )
+        body.addWidget(left_panel)
 
         # ====================================================
         # RIGHT DISPLAY PANEL
@@ -763,24 +784,20 @@ class LibraryPage(QWidget):
             "libraryDisplayPanel"
         )
 
-        self.settings_panel.setFixedWidth(
-            340
-        )
+        self.settings_panel.setMinimumWidth(0)
 
         side = QVBoxLayout(
             self.settings_panel
         )
 
         side.setContentsMargins(
-            16,
-            17,
-            16,
-            16,
+            12,
+            12,
+            12,
+            12,
         )
 
-        side.setSpacing(
-            11
-        )
+        side.setSpacing(8)
 
         side.addWidget(
             self.side_heading(
@@ -825,9 +842,7 @@ class LibraryPage(QWidget):
                 True
             )
 
-            button.setFixedHeight(
-                43
-            )
+            button.setMinimumHeight(36)
 
             button.setCursor(
                 Qt.PointingHandCursor
@@ -976,15 +991,14 @@ class LibraryPage(QWidget):
             )
         )
 
-        self.sort_combo = QComboBox()
+        self.sort_combo = ElidedComboBox()
+        configure_combo(self.sort_combo)
 
         self.sort_combo.setObjectName(
             "librarySideCombo"
         )
 
-        self.sort_combo.setFixedHeight(
-            42
-        )
+        self.sort_combo.setMinimumHeight(34)
 
         sort_options = (
             ("Last read", "last_read"),
@@ -1051,7 +1065,7 @@ class LibraryPage(QWidget):
         self.side_search_input.setObjectName("librarySideSearch")
         self.side_search_input.setPlaceholderText("Search files...")
         self.side_search_input.setClearButtonEnabled(True)
-        self.side_search_input.setFixedHeight(42)
+        self.side_search_input.setMinimumHeight(34)
         self.side_search_input.addAction(
             ui_icon("search"), QLineEdit.LeadingPosition
         )
@@ -1065,15 +1079,14 @@ class LibraryPage(QWidget):
             )
         )
 
-        self.type_combo = QComboBox()
+        self.type_combo = ElidedComboBox()
+        configure_combo(self.type_combo)
 
         self.type_combo.setObjectName(
             "librarySideCombo"
         )
 
-        self.type_combo.setFixedHeight(
-            42
-        )
+        self.type_combo.setMinimumHeight(34)
 
         self.type_combo.addItem(
             "All supported files",
@@ -1117,23 +1130,27 @@ class LibraryPage(QWidget):
             self.side_count
         )
 
-        body.addWidget(
-            self.settings_panel
-        )
-
-        root.addLayout(
-            body,
-            1,
-        )
+        self.display_scroll = QScrollArea(body)
+        self.display_scroll.setObjectName("libraryDisplayScroll")
+        self.display_scroll.setFrameShape(QFrame.NoFrame)
+        self.display_scroll.setWidgetResizable(True)
+        self.display_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.display_scroll.setMinimumWidth(250)
+        self.display_scroll.setMaximumWidth(420)
+        self.display_scroll.setWidget(self.settings_panel)
+        body.addWidget(self.display_scroll)
+        body.setStretchFactor(0, 1)
+        body.setStretchFactor(1, 0)
+        body.setSizes([700, 280])
+        persist_splitter(body, "library_splitter")
+        root.addWidget(body, 1)
 
 
         # ====================================================
         # INITIAL DISPLAY STATE
         # ====================================================
 
-        self.settings_panel.setVisible(
-            self.display_panel_visible
-        )
+        self.display_scroll.setVisible(self.display_panel_visible)
 
         self.update_mode_buttons()
 
@@ -1169,10 +1186,7 @@ class LibraryPage(QWidget):
             tooltip
         )
 
-        button.setFixedSize(
-            42,
-            42,
-        )
+        button.setFixedSize(34, 34)
 
         button.setCursor(
             Qt.PointingHandCursor
@@ -1210,7 +1224,7 @@ class LibraryPage(QWidget):
     def toggle_display_panel(self):
         """Toggle the panel without rebuilding book cards."""
         self.display_panel_visible = not self.display_panel_visible
-        self.settings_panel.setVisible(self.display_panel_visible)
+        self.display_scroll.setVisible(self.display_panel_visible)
         self.update_display_button()
         # Resizing the viewport already schedules a debounced reflow.
         # There is no need to reload every book or display a second window.
@@ -1306,7 +1320,7 @@ class LibraryPage(QWidget):
 
                 color: #c1c5ff;
 
-                font-size: 19px;
+                font-size: 16px;
                 font-weight: 700;
 
                 border: none;
@@ -3052,14 +3066,14 @@ class LibraryPage(QWidget):
 
             QLabel#libraryPageHeading {
                 color: #f1f0ff;
-                font-size: 31px;
+                font-size: 24px;
                 font-weight: 700;
             }
 
             QToolButton#libraryHeaderButton {
                 background: transparent;
                 border: none;
-                border-radius: 11px;
+                border-radius: 7px;
                 color: #d9dcff;
                 font-size: 24px;
             }
@@ -3073,7 +3087,7 @@ class LibraryPage(QWidget):
                 background: #303351;
                 color: #e9e9ff;
                 border: none;
-                border-radius: 11px;
+                border-radius: 7px;
                 padding: 0 17px;
                 font-size: 14px;
             }
@@ -3086,7 +3100,7 @@ class LibraryPage(QWidget):
                 background: #201a1e;
                 color: #e9b9bf;
                 border: 1px solid #68404a;
-                border-radius: 11px;
+                border-radius: 7px;
                 padding: 0 15px;
                 font-size: 13px;
             }
@@ -3190,7 +3204,7 @@ class LibraryPage(QWidget):
             QFrame#libraryDisplayPanel {
                 background: #15171d;
                 border: 1px solid #292e39;
-                border-radius: 12px;
+                border-radius: 7px;
             }
 
             QLabel#librarySideHeading {
@@ -3214,7 +3228,7 @@ class LibraryPage(QWidget):
                 background: #14161d;
                 color: #e0e2f5;
                 border: 1px solid #474b61;
-                border-radius: 12px;
+                border-radius: 7px;
                 font-size: 13px;
             }
 
@@ -3267,7 +3281,7 @@ class LibraryPage(QWidget):
             /* LITENOVA_DISPLAY_PANEL_V1 - panel-only styling */
             QLabel#librarySideHeading {
                 color: #c1c5ff;
-                font-size: 19px;
+                font-size: 16px;
                 font-weight: 700;
                 padding-top: 4px;
             }
@@ -3279,7 +3293,7 @@ class LibraryPage(QWidget):
                 background: #13151b;
                 color: #e3e4f1;
                 border: 1px solid #4a4d60;
-                border-radius: 17px;
+                border-radius: 7px;
                 font-size: 14px;
             }
             QPushButton#libraryModeButton:checked {
@@ -3296,7 +3310,7 @@ class LibraryPage(QWidget):
                 background: #12151b;
                 color: #e8e9fb;
                 border: 1px solid #404554;
-                border-radius: 11px;
+                border-radius: 7px;
                 padding-left: 9px;
                 padding-right: 8px;
                 font-size: 13px;

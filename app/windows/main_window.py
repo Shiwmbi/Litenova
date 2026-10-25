@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
     QWidget,
+    QSizePolicy,
     QHBoxLayout,
     QVBoxLayout,
     QPushButton,
@@ -122,24 +123,22 @@ class MainWindow(QMainWindow):
             "sidebar"
         )
 
-        self.sidebar.setFixedWidth(
-            190
-        )
+        self.sidebar.setMinimumWidth(190)
+        self.sidebar.setMaximumWidth(240)
+        self.sidebar.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
 
         sidebar_layout = QVBoxLayout(
             self.sidebar
         )
 
         sidebar_layout.setContentsMargins(
-            15,
-            25,
-            15,
-            20,
+            12,
+            16,
+            12,
+            16,
         )
 
-        sidebar_layout.setSpacing(
-            10
-        )
+        sidebar_layout.setSpacing(6)
 
         self.library_button = (
             self.make_sidebar_button(
@@ -192,12 +191,12 @@ class MainWindow(QMainWindow):
             QPushButton#sidebarButton {
                 text-align: left;
                 padding: 9px 12px;
-                min-height: 50px;
+                min-height: 24px;
                 background: transparent;
                 color: #dcdff0;
                 border: 1px solid transparent;
-                border-radius: 12px;
-                font-size: 15px;
+                border-radius: 7px;
+                font-size: 13px;
             }
 
             QPushButton#sidebarButton:hover {
@@ -229,6 +228,14 @@ class MainWindow(QMainWindow):
         self.comic_reader_page = ComicReaderPage()
 
         self.settings_page = SettingsPage()
+        for button in (self.library_button, self.history_button, self.browse_button, self.settings_button):
+            button.ensurePolished()
+        sidebar_width = max(button.sizeHint().width() for button in (
+            self.library_button, self.history_button, self.browse_button, self.settings_button,
+        )) + 24
+        self.sidebar.setMinimumWidth(sidebar_width)
+        self.sidebar.setMaximumWidth(max(240, sidebar_width))
+
 
         for page in (
             self.library_page,
@@ -245,6 +252,8 @@ class MainWindow(QMainWindow):
         # ====================================================
         # SIDEBAR CONNECTIONS
         # ====================================================
+
+        self.pages.currentChanged.connect(self._close_inactive_epub)
 
         self.library_button.clicked.connect(
             self.show_library
@@ -481,6 +490,9 @@ class MainWindow(QMainWindow):
         )
         download = dialog.addButton("Download Update", QMessageBox.ButtonRole.AcceptRole)
         later = dialog.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        for button in (download, later):
+            button.ensurePolished()
+            button.setMinimumWidth(button.sizeHint().width())
         dialog.setDefaultButton(later)
         dialog.exec()
         if dialog.clickedButton() is download:
@@ -617,14 +629,12 @@ class MainWindow(QMainWindow):
 
         button.setIconSize(
             QSize(
-                27,
-                27,
+                20,
+                20,
             )
         )
 
-        button.setMinimumHeight(
-            56
-        )
+        button.setMinimumHeight(36)
 
         return button
 
@@ -758,6 +768,15 @@ class MainWindow(QMainWindow):
     def reload_reader_settings(self):
         if self.reader_page is not None:
             self.reader_page.reload_settings()
+
+    def _close_inactive_epub(self, _index):
+        if self.reader_page is not None and self.pages.currentWidget() is not self.reader_page:
+            self.reader_page.close_book()
+
+    def closeEvent(self, event):
+        if self.reader_page is not None:
+            self.reader_page.close_book()
+        super().closeEvent(event)
 
     def get_reader_page(self):
         if self.reader_page is None:

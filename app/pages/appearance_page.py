@@ -3,6 +3,8 @@
 The window title bar is native Windows UI; changing colors here does not
 recolor its native chrome or replace the user's Litenova application logo.
 """
+from app.widgets.layout_helpers import WrapLayout, persist_splitter
+
 import copy
 import uuid
 
@@ -10,7 +12,7 @@ from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox, QFrame, QHBoxLayout, QInputDialog, QLabel,
-    QMessageBox, QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget, QSplitter,
 )
 
 from app.services.appearance_service import (
@@ -68,8 +70,8 @@ class AppearancePage(QWidget):
 
     def build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 18, 24, 18)
-        root.setSpacing(13)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(12)
         toolbar = QHBoxLayout()
         toolbar.addWidget(self.button("← Settings", self.back, "appearanceBack"))
         title_layout = QVBoxLayout()
@@ -79,9 +81,10 @@ class AppearancePage(QWidget):
         toolbar.addLayout(title_layout, 1)
         root.addLayout(toolbar)
 
-        body = QHBoxLayout()
-        body.setSpacing(16)
-        root.addLayout(body, 1)
+        body = QSplitter(Qt.Horizontal, self)
+        self.appearance_splitter = body
+        body.setObjectName("appearanceSplitter")
+        root.addWidget(body, 1)
 
         # Independent scroll: controls can be taller than the reader preview.
         scroll = QScrollArea(self)
@@ -95,7 +98,8 @@ class AppearancePage(QWidget):
         self.controls.setContentsMargins(2, 2, 7, 12)
         self.controls.setSpacing(12)
         scroll.setWidget(container)
-        body.addWidget(scroll, 7)
+        scroll.setMinimumWidth(300)
+        body.addWidget(scroll)
 
         # Dark-only variants: no light-mode toggle (per user preference).
         self.section(self.controls, "Dark theme presets")
@@ -103,7 +107,7 @@ class AppearancePage(QWidget):
             "Litenova stays in dark mode. Select a different dark color palette.",
             "appearanceDetail"
         ))
-        themes = QHBoxLayout()
+        themes = WrapLayout()
         themes.setSpacing(9)
         self.theme_buttons = {}
         for key, name, summary, colors in (
@@ -115,10 +119,10 @@ class AppearancePage(QWidget):
             button = self.button(label, lambda _checked=False, choice=key: self.set_theme(choice),
                                  "appearanceTheme")
             button.setCheckable(True)
-            button.setMinimumHeight(106)
+            button.setMinimumHeight(76)
             button.setToolTip(f"{name}: {summary}")
             button.setProperty("paletteName", key)
-            themes.addWidget(button, 1)
+            themes.addWidget(button)
             self.theme_buttons[key] = button
         self.controls.addLayout(themes)
 
@@ -190,7 +194,7 @@ class AppearancePage(QWidget):
                 row.addWidget(slider, 1)
                 reset = self.button("↶", lambda _checked=False, k=channel, i=index:
                                     self.reset_component(k, i), "appearanceReset")
-                reset.setFixedWidth(29)
+                reset.setMinimumWidth(32)
                 reset.setToolTip("Reset this channel to the theme default")
                 row.addWidget(reset)
                 self.rgb_sliders[(channel, index)] = slider
@@ -212,10 +216,10 @@ class AppearancePage(QWidget):
         # Reference-style live reading preview in a right-hand card.
         self.preview_panel = QFrame(self)
         self.preview_panel.setObjectName("appearancePreviewPanel")
-        self.preview_panel.setMinimumWidth(255)
-        self.preview_panel.setMaximumWidth(395)
+        self.preview_panel.setMinimumWidth(220)
+        self.preview_panel.setMaximumWidth(360)
         side = QVBoxLayout(self.preview_panel)
-        side.setContentsMargins(17, 17, 17, 17)
+        side.setContentsMargins(12, 12, 12, 12)
         side.setSpacing(12)
         side.addWidget(self.text("Live preview", "appearanceSection"))
         side.addWidget(self.text("See the selected background and text colors.", "appearanceDetail"))
@@ -249,7 +253,11 @@ class AppearancePage(QWidget):
             "appearanceDetail"
         )
         side.addWidget(self.preview_note)
-        body.addWidget(self.preview_panel, 4)
+        body.addWidget(self.preview_panel)
+        body.setStretchFactor(0, 1)
+        body.setStretchFactor(1, 0)
+        body.setSizes([650, 280])
+        persist_splitter(body, "appearance_splitter")
 
         self.left_shortcut = QShortcut(QKeySequence("Ctrl+Alt+Left"), self)
         self.left_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
@@ -262,12 +270,12 @@ class AppearancePage(QWidget):
             QWidget#appearancePage, QWidget#appearanceScrollContent { background: #15171e; color: #e9ebfb; }
             QScrollArea#appearanceScroll { background: transparent; border: none; }
             QLabel { background: transparent; border: none; }
-            QLabel#appearanceTitle { color: #f3f2ff; font-size: 27px; font-weight: 700; }
+            QLabel#appearanceTitle { color: #f3f2ff; font-size: 24px; font-weight: 700; }
             QLabel#appearanceSection { color: #c8c8fa; font-size: 16px; font-weight: 700; }
             QLabel#appearanceCaption { color: #e8e8f4; font-size: 13px; }
             QLabel#appearanceDetail { color: #aeb2c9; font-size: 11px; }
             QFrame#appearanceGroup, QFrame#appearancePreviewPanel { background: #191c24;
-                border: 1px solid #383c4b; border-radius: 11px; }
+                border: 1px solid #383c4b; border-radius: 7px; }
             QPushButton#appearanceButton, QPushButton#appearanceBack, QPushButton#appearanceDanger,
             QPushButton#appearanceReset, QPushButton#appearanceSegment, QPushButton#appearanceTheme {
                 background: #242735; color: #e6e6f7; border: 1px solid #555b72;
@@ -275,10 +283,10 @@ class AppearancePage(QWidget):
             QPushButton#appearanceButton:hover, QPushButton#appearanceBack:hover,
             QPushButton#appearanceReset:hover, QPushButton#appearanceTheme:hover {
                 border-color: #bab5ff; background: #32364e; }
-            QPushButton#appearanceTheme { min-width: 95px; text-align: left; padding: 13px;
+            QPushButton#appearanceTheme { min-width: 95px; text-align: left; padding: 8px;
                 font-size: 13px; background: #181b22; }
             QPushButton#appearanceTheme:checked, QPushButton#appearanceSegment:checked {
-                background: #383d62; color: #f5f3ff; border: 2px solid #b3b0fb; }
+                background: #303449; color: #f5f3ff; border: 1px solid #777bad; }
             QPushButton#appearanceSegment { border-radius: 5px; }
             QPushButton#appearanceDanger { border-color: #ad626d; color: #ffc6cd; }
             QPushButton#appearanceReset { background: transparent; }

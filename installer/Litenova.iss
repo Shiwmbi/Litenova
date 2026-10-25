@@ -1,5 +1,5 @@
 #define MyAppName "Litenova"
-#define MyAppVersion "3.0.4"
+#define MyAppVersion "3.1.0"
 #define MyAppPublisher "Litenova Project"
 #define MyAppExeName "Litenova.exe"
 

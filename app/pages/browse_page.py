@@ -1,3 +1,4 @@
+from app.widgets.layout_helpers import WrappingLabel, ElidedLabel, persist_splitter
 import os
 import re
 import zipfile
@@ -824,13 +825,9 @@ class BrowsePage(QWidget):
             True
         )
 
-        self.search_input.setFixedHeight(
-            42
-        )
+        self.search_input.setMinimumHeight(34)
 
-        self.search_input.setMinimumWidth(
-            180
-        )
+        self.search_input.setMinimumWidth(140)
 
         self.search_input.setMaximumWidth(
             330
@@ -946,6 +943,7 @@ class BrowsePage(QWidget):
         # ====================================================
 
         self.file_panel = QWidget()
+        self.file_panel.setMinimumWidth(320)
 
         file_panel_layout = QVBoxLayout(
             self.file_panel
@@ -1035,9 +1033,8 @@ class BrowsePage(QWidget):
             "Enter a folder path..."
         )
 
-        self.address_input.setFixedHeight(
-            43
-        )
+        self.address_input.textChanged.connect(self.address_input.setToolTip)
+        self.address_input.setMinimumHeight(34)
 
         folder_address_icon = browse_resource_icon("folder", "open_folder")
         if not folder_address_icon.isNull():
@@ -1322,9 +1319,8 @@ class BrowsePage(QWidget):
             "browsePreviewPanel"
         )
 
-        self.preview_panel.setMinimumWidth(
-            310
-        )
+        self.preview_panel.setMinimumWidth(280)
+        self.preview_panel.setMaximumWidth(420)
 
         preview_scroll = QScrollArea(
             self.preview_panel
@@ -1359,9 +1355,7 @@ class BrowsePage(QWidget):
             16,
         )
 
-        preview_layout.setSpacing(
-            14
-        )
+        preview_layout.setSpacing(8)
 
         # ====================================================
         # SELECTED FILE INFORMATION
@@ -1380,8 +1374,8 @@ class BrowsePage(QWidget):
         )
 
         self.preview_cover.setFixedSize(
-            120,
-            180,
+            88,
+            132,
         )
 
         self.preview_cover.setAlignment(
@@ -1402,7 +1396,7 @@ class BrowsePage(QWidget):
             7
         )
 
-        self.preview_title = QLabel(
+        self.preview_title = ElidedLabel(
             "Select a file"
         )
 
@@ -1410,11 +1404,9 @@ class BrowsePage(QWidget):
             "browsePreviewTitle"
         )
 
-        self.preview_title.setWordWrap(
-            True
-        )
+        self.preview_title.setWordWrap(False)
 
-        self.preview_author = QLabel(
+        self.preview_author = ElidedLabel(
             "Choose an EPUB or CBZ file to preview."
         )
 
@@ -1422,9 +1414,7 @@ class BrowsePage(QWidget):
             "browseSecondary"
         )
 
-        self.preview_author.setWordWrap(
-            True
-        )
+        self.preview_author.setWordWrap(False)
 
         self.preview_size = QLabel()
 
@@ -1539,9 +1529,7 @@ class BrowsePage(QWidget):
             QSize(22, 22)
         )
 
-        self.import_button.setFixedHeight(
-            52
-        )
+        self.import_button.setMinimumHeight(36)
 
         self.import_button.setEnabled(
             False
@@ -1570,10 +1558,10 @@ class BrowsePage(QWidget):
         preview_layout.addLayout(selection_actions)
 
         self.group_selected_button = QPushButton(
-            "Group Selected Chapters as One Series"
+            "Group Selected as Series"
         )
         self.group_selected_button.setObjectName("browseSecondaryButton")
-        self.group_selected_button.setFixedHeight(42)
+        self.group_selected_button.setMinimumHeight(34)
         self.group_selected_button.setEnabled(False)
         self.group_selected_button.setToolTip(
             "Select two or more chapter EPUB/CBZ files, then import them as one Manga/Manhwa book"
@@ -1586,16 +1574,14 @@ class BrowsePage(QWidget):
         # ====================================================
 
         self.import_folder_button = QPushButton(
-            "Import Chapter Folder as Manga/Manhwa"
+            "Import Chapter Folder"
         )
 
         self.import_folder_button.setObjectName(
             "browseSecondaryButton"
         )
 
-        self.import_folder_button.setFixedHeight(
-            44
-        )
+        self.import_folder_button.setMinimumHeight(34)
 
         comic_folder_icon = browse_resource_icon("add_folder", "open_folder")
         if not comic_folder_icon.isNull():
@@ -1727,9 +1713,8 @@ class BrowsePage(QWidget):
             1,
         )
 
-        self.main_splitter.setSizes(
-            [850, 350]
-        )
+        self.main_splitter.setSizes([850, 300])
+        persist_splitter(self.main_splitter, "browse_splitter")
 
         # ====================================================
         # BOTTOM STATUS
@@ -3754,7 +3739,7 @@ class BrowsePage(QWidget):
 
             QLabel#browsePageTitle {
                 color: #f1f0ff;
-                font-size: 32px;
+                font-size: 24px;
                 font-weight: 700;
             }
 
@@ -3771,7 +3756,7 @@ class BrowsePage(QWidget):
 
             QLabel#browseSectionTitle {
                 color: #eeeefe;
-                font-size: 19px;
+                font-size: 16px;
                 font-weight: 600;
             }
 
@@ -3889,7 +3874,7 @@ class BrowsePage(QWidget):
             QFrame#browsePreviewPanel {
                 background: #15171d;
                 border: 1px solid #303542;
-                border-radius: 11px;
+                border-radius: 7px;
             }
 
             QScrollArea#browsePreviewScroll {

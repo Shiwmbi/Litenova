@@ -15,6 +15,8 @@ Features:
 - Uses Litenova's custom PNG icons
 """
 
+from app.widgets.layout_helpers import ElidedLabel, persist_splitter
+
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -23,12 +25,12 @@ from PySide6.QtCore import (
     Signal,
     QUrl,
     QSize,
+    QEvent,
 )
 
 from PySide6.QtGui import (
     QPixmap,
     QDesktopServices,
-    QFontMetrics,
 )
 
 from PySide6.QtWidgets import (
@@ -41,6 +43,8 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
+    QSplitter,
     QMessageBox,
     QSizePolicy,
 )
@@ -260,9 +264,7 @@ class HistoryRow(QFrame):
             False,
         )
 
-        self.setFixedHeight(
-            112
-        )
+        self.setMinimumHeight(88)
 
         self.setCursor(
             Qt.PointingHandCursor
@@ -302,8 +304,8 @@ class HistoryRow(QFrame):
         )
 
         self.cover.setFixedSize(
-            92,
-            92,
+            64,
+            76,
         )
 
         self.cover.setAlignment(
@@ -316,8 +318,8 @@ class HistoryRow(QFrame):
                 self.entry,
                 "cover_path",
             ),
-            92,
-            92,
+            64,
+            76,
             crop=True,
         )
 
@@ -346,7 +348,7 @@ class HistoryRow(QFrame):
         # TITLE
         # ----------------------------------------------------
 
-        self.title_label = QLabel(
+        self.title_label = ElidedLabel(
             str(
                 entry_value(
                     self.entry,
@@ -368,7 +370,7 @@ class HistoryRow(QFrame):
         # CHAPTER
         # ----------------------------------------------------
 
-        self.chapter_label = QLabel(
+        self.chapter_label = ElidedLabel(
             chapter_title(
                 self.entry
             )
@@ -621,10 +623,7 @@ class HistoryPage(QWidget):
             )
         )
 
-        button.setFixedSize(
-            42,
-            42,
-        )
+        button.setFixedSize(34, 34)
 
         button.setToolTip(
             tooltip
@@ -662,11 +661,11 @@ class HistoryPage(QWidget):
         )
 
         button.setIconSize(
-            QSize(30, 30)
+            QSize(20, 20)
         )
 
         button.setToolButtonStyle(
-            Qt.ToolButtonTextUnderIcon
+            Qt.ToolButtonTextBesideIcon
         )
 
         button.setToolTip(
@@ -677,9 +676,7 @@ class HistoryPage(QWidget):
             Qt.PointingHandCursor
         )
 
-        button.setMinimumHeight(
-            100
-        )
+        button.setMinimumHeight(34)
 
         button.setSizePolicy(
             QSizePolicy.Expanding,
@@ -817,9 +814,7 @@ class HistoryPage(QWidget):
             True
         )
 
-        self.search_input.setFixedHeight(
-            47
-        )
+        self.search_input.setMinimumHeight(34)
 
         self.search_input.textChanged.connect(
             self.render_history
@@ -899,28 +894,18 @@ class HistoryPage(QWidget):
             "historyDetailsPanel"
         )
 
-        self.details_panel.setMinimumWidth(
-            320
-        )
+        self.details_panel.setMinimumWidth(0)
+        self.details_panel.installEventFilter(self)
 
-        self.details_panel.setMaximumWidth(
-            430
-        )
+
 
         detail = QVBoxLayout(
             self.details_panel
         )
 
-        detail.setContentsMargins(
-            21,
-            21,
-            21,
-            21,
-        )
-
-        detail.setSpacing(
-            11
-        )
+        detail.setContentsMargins(12, 12, 12, 12)
+        # Explicit section gaps avoid compounded layout/spacer spacing.
+        detail.setSpacing(0)
 
         # ====================================================
         # LARGE COVER
@@ -936,24 +921,14 @@ class HistoryPage(QWidget):
             Qt.AlignCenter
         )
 
-        self.detail_cover.setMinimumHeight(
-            175
-        )
-
-        self.detail_cover.setMaximumHeight(
-            450
-        )
-
-        self.detail_cover.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Expanding,
-        )
+        self.detail_cover.setFixedSize(120, 120)
+        self.detail_cover.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
         # ====================================================
         # TITLE
         # ====================================================
 
-        self.detail_title = QLabel(
+        self.detail_title = ElidedLabel(
             "Select a history entry"
         )
 
@@ -961,23 +936,21 @@ class HistoryPage(QWidget):
             "historyDetailTitle"
         )
 
-        self.detail_title.setWordWrap(
-            True
-        )
+        self.detail_title.setWordWrap(False)
+        self.detail_title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
 
         # ====================================================
         # CHAPTER
         # ====================================================
 
-        self.detail_chapter = QLabel()
+        self.detail_chapter = ElidedLabel()
 
         self.detail_chapter.setObjectName(
             "historyDetailChapter"
         )
 
-        self.detail_chapter.setWordWrap(
-            True
-        )
+        self.detail_chapter.setWordWrap(False)
+        self.detail_chapter.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
 
         # ====================================================
         # SEPARATOR
@@ -998,6 +971,7 @@ class HistoryPage(QWidget):
         # ====================================================
 
         self.meta_widget = QWidget()
+        self.meta_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         self.meta_layout = QVBoxLayout(
             self.meta_widget
@@ -1010,9 +984,7 @@ class HistoryPage(QWidget):
             0,
         )
 
-        self.meta_layout.setSpacing(
-            6
-        )
+        self.meta_layout.setSpacing(4)
 
         self.last_read_value = (
             self.add_meta_row(
@@ -1064,9 +1036,7 @@ class HistoryPage(QWidget):
             QSize(24, 24)
         )
 
-        self.continue_button.setFixedHeight(
-            54
-        )
+        self.continue_button.setMinimumHeight(40)
 
         self.continue_button.setCursor(
             Qt.PointingHandCursor
@@ -1080,7 +1050,9 @@ class HistoryPage(QWidget):
         # DETAIL ACTION BUTTONS
         # ====================================================
 
-        actions = QHBoxLayout()
+        actions = QGridLayout()
+        actions.setColumnStretch(0, 1)
+        actions.setColumnStretch(1, 1)
 
         actions.setSpacing(
             8
@@ -1105,7 +1077,7 @@ class HistoryPage(QWidget):
         self.remove_history_button = (
             self.make_action_button(
                 "remove_from_history",
-                "Remove from\nHistory",
+                "Remove from History",
                 "Remove the selected reading-history entry",
             )
         )
@@ -1122,64 +1094,55 @@ class HistoryPage(QWidget):
             self.remove_selected_history
         )
 
-        actions.addWidget(
-            self.open_folder_button
-        )
-
-        actions.addWidget(
-            self.view_library_button
-        )
-
-        actions.addWidget(
-            self.remove_history_button
-        )
+        actions.addWidget(self.continue_button, 0, 0, 1, 2)
+        actions.addWidget(self.open_folder_button, 1, 0)
+        actions.addWidget(self.view_library_button, 1, 1)
+        actions.addWidget(self.remove_history_button, 2, 0, 1, 2)
+        self.remove_history_button.setProperty("danger", True)
 
         # ====================================================
         # ADD DETAILS
         # ====================================================
 
-        detail.addWidget(
-            self.detail_cover,
-            1,
-        )
-
-        detail.addWidget(
-            self.detail_title
-        )
-
-        detail.addWidget(
-            self.detail_chapter
-        )
-
-        detail.addWidget(
-            separator
-        )
-
-        detail.addWidget(
-            self.meta_widget
-        )
-
-        detail.addWidget(
-            self.continue_button
-        )
-
-        detail.addLayout(
-            actions
-        )
+        detail.addWidget(self.detail_cover, 0, Qt.AlignHCenter)
+        detail.addSpacing(8)
+        detail.addWidget(self.detail_title)
+        detail.addSpacing(4)
+        detail.addWidget(self.detail_chapter)
+        detail.addSpacing(8)
+        detail.addWidget(separator)
+        detail.addSpacing(6)
+        detail.addWidget(self.meta_widget)
+        detail.addSpacing(10)
+        detail.addLayout(actions)
+        # Only this final spacer receives unused height from the scroll viewport.
+        detail.addStretch(1)
 
         # ====================================================
         # COMPLETE LAYOUT
         # ====================================================
 
-        outer.addWidget(
-            left_panel,
-            1,
-        )
-
-        outer.addWidget(
-            self.details_panel,
-            0,
-        )
+        self.history_splitter = QSplitter(Qt.Horizontal, self)
+        self.history_splitter.setObjectName("historySplitter")
+        self.history_splitter.setChildrenCollapsible(False)
+        self.history_splitter.setHandleWidth(7)
+        self.history_splitter.setOpaqueResize(False)
+        self.history_splitter.setStyleSheet("QSplitter::handle { background: #252936; } QSplitter::handle:hover { background: #626783; }")
+        left_panel.setMinimumWidth(340)
+        self.history_splitter.addWidget(left_panel)
+        self.details_scroll = QScrollArea(self.history_splitter)
+        self.details_scroll.setWidgetResizable(True)
+        self.details_scroll.setFrameShape(QFrame.NoFrame)
+        self.details_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.details_scroll.setMinimumWidth(300)
+        self.details_scroll.setMaximumWidth(480)
+        self.details_scroll.setWidget(self.details_panel)
+        self.history_splitter.addWidget(self.details_scroll)
+        self.history_splitter.setStretchFactor(0, 1)
+        self.history_splitter.setStretchFactor(1, 0)
+        self.history_splitter.setSizes([700, 320])
+        persist_splitter(self.history_splitter, "history_splitter")
+        outer.addWidget(self.history_splitter)
 
     # ========================================================
     # OPEN SETTINGS
@@ -1244,13 +1207,9 @@ class HistoryPage(QWidget):
             "historyMetaLabel"
         )
 
-        label.setFixedWidth(
-            105
-        )
+        label.setFixedWidth(max(label.fontMetrics().horizontalAdvance(text) for text in ("Last read", "Progress", "Total chapters", "Source", "Path")) + 8)
 
-        value = QLabel(
-            "—"
-        )
+        value = ElidedLabel("—", mode=Qt.ElideMiddle)
 
         value.setObjectName(
             "historyMetaValue"
@@ -1297,14 +1256,14 @@ class HistoryPage(QWidget):
 
             QLabel#historyPageTitle {
                 color: #f0efff;
-                font-size: 32px;
+                font-size: 24px;
                 font-weight: 700;
             }
 
             QLineEdit#historySearch {
                 background: #101218;
                 border: 1px solid #454b5d;
-                border-radius: 13px;
+                border-radius: 7px;
                 color: #e7e8f5;
                 font-size: 15px;
                 padding-right: 12px;
@@ -1322,7 +1281,7 @@ class HistoryPage(QWidget):
             QFrame#historyRow {
                 background: transparent;
                 border: 1px solid transparent;
-                border-radius: 13px;
+                border-radius: 7px;
             }
 
             QFrame#historyRow:hover {
@@ -1330,8 +1289,8 @@ class HistoryPage(QWidget):
             }
 
             QFrame#historyRow[selected="true"] {
-                background: rgba(91, 91, 145, 0.22);
-                border: 2px solid #b6b5f5;
+                background: rgba(91, 91, 145, 0.10);
+                border: 1px solid #454b5d;
             }
 
             QLabel#historyThumb {
@@ -1353,10 +1312,12 @@ class HistoryPage(QWidget):
             }
 
             QLabel#historyGroupTitle {
-                color: #b9b8ff;
-                font-size: 18px;
-                font-weight: 700;
-                margin-top: 8px;
+                background: transparent;
+                border: none;
+                color: #b8bbd2;
+                font-size: 15px;
+                font-weight: 600;
+                margin-top: 4px;
             }
 
             QToolButton#historyMenuButton,
@@ -1379,17 +1340,20 @@ class HistoryPage(QWidget):
 
             QLabel#historyLargeCover {
                 background: #12151e;
-                border-radius: 12px;
+                border-radius: 7px;
                 color: #777d91;
             }
 
             QLabel#historyDetailTitle {
                 color: #f1f0ff;
-                font-size: 21px;
+                font-size: 18px;
                 font-weight: 700;
             }
 
             QLabel#historyDetailChapter {
+                background: transparent;
+                border: none;
+                padding: 0;
                 color: #c2c3d8;
                 font-size: 15px;
             }
@@ -1403,6 +1367,9 @@ class HistoryPage(QWidget):
 
             QLabel#historyMetaLabel,
             QLabel#historyMetaValue {
+                background: transparent;
+                border: none;
+                padding: 0;
                 color: #cdd0e2;
                 font-size: 13px;
             }
@@ -1410,7 +1377,7 @@ class HistoryPage(QWidget):
             QPushButton#historyContinueButton {
                 background: #4d4e83;
                 border: 1px solid #7778c0;
-                border-radius: 14px;
+                border-radius: 7px;
                 color: #f0efff;
                 font-size: 15px;
                 font-weight: 600;
@@ -1423,7 +1390,7 @@ class HistoryPage(QWidget):
             QToolButton#historyActionButton {
                 background: #101218;
                 border: 1px solid #454b5d;
-                border-radius: 13px;
+                border-radius: 7px;
                 color: #e0e0f0;
                 font-size: 12px;
                 padding: 5px;
@@ -1432,6 +1399,14 @@ class HistoryPage(QWidget):
             QToolButton#historyActionButton:hover {
                 background: #1b1d29;
                 border: 1px solid #696f87;
+            }
+
+            QToolButton#historyActionButton[danger="true"] {
+                color: #dbabb1;
+                border-color: #68404a;
+            }
+            QToolButton#historyActionButton[danger="true"]:hover {
+                background: #342329;
             }
 
             QPushButton:disabled,
@@ -1769,22 +1744,19 @@ class HistoryPage(QWidget):
         path,
     ):
 
-        width = max(
-            120,
-            self.detail_cover.width() - 10,
-        )
+        original = QPixmap(str(path)) if path and Path(str(path)).is_file() else QPixmap()
+        if original.isNull():
+            self.detail_cover.setFixedSize(120, 120)
+            self.detail_cover.clear()
+            self.detail_cover.setText("NO COVER")
+            return
 
-        height = max(
-            130,
-            self.detail_cover.height() - 10,
-        )
-
-        set_cover(
-            self.detail_cover,
-            path,
-            width,
-            height,
-        )
+        margins = self.details_panel.layout().contentsMargins()
+        available = max(1, self.details_panel.width() - margins.left() - margins.right())
+        scaled = original.scaled(min(300, available), 280,
+                                 Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.detail_cover.setFixedSize(scaled.size())
+        self.detail_cover.setPixmap(scaled)
 
     # ========================================================
     # UPDATE DETAILS
@@ -1923,21 +1895,7 @@ class HistoryPage(QWidget):
             or ""
         )
 
-        metrics = QFontMetrics(
-            self.path_value.font()
-        )
-
-        displayed_path = (
-            metrics.elidedText(
-                path,
-                Qt.ElideMiddle,
-                205,
-            )
-        )
-
-        self.path_value.setText(
-            displayed_path
-        )
+        self.path_value.setText(path)
 
         self.path_value.setToolTip(
             path
@@ -1974,6 +1932,7 @@ class HistoryPage(QWidget):
         self.selected_history_id = None
 
         self.detail_cover.clear()
+        self.detail_cover.setFixedSize(120, 120)
 
         self.detail_cover.setText(
             "NO HISTORY SELECTED"
@@ -2218,6 +2177,12 @@ class HistoryPage(QWidget):
         )
 
         self.refresh()
+
+    def eventFilter(self, watched, event):
+        if (watched is self.details_panel and event.type() == QEvent.Resize
+                and self.selected_entry is not None):
+            self.set_detail_cover(entry_value(self.selected_entry, "cover_path"))
+        return super().eventFilter(watched, event)
 
     # ========================================================
     # WINDOW RESIZED

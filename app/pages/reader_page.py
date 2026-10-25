@@ -4,6 +4,8 @@ Replace app/pages/reader_page.py with this file. Other app pages are unchanged.
 The settings sidebar controls real QTextBrowser formatting, not CBZ images.
 """
 
+from app.widgets.layout_helpers import ElidedLabel, ResponsiveRow, WrapLayout, configure_combo, ElidedComboBox
+
 import math
 import json
 import re
@@ -262,6 +264,7 @@ def row_label(
     caption.setObjectName(
         "readerRowTitle"
     )
+    caption.setWordWrap(True)
 
     layout.addWidget(
         caption
@@ -476,19 +479,22 @@ class ReaderPage(QWidget):
 
         self._toc_width = setting_int(
             "epub_toc_width",
-            275,
+            240,
             190,
-            490,
+            380,
         )
 
         self._settings_width = setting_int(
             "epub_settings_width",
-            450,
-            420,
-            680,
+            360,
+            280,
+            480,
         )
 
         self._splitter_ready = False
+        self._panel_restore_timer = QTimer(self)
+        self._panel_restore_timer.setSingleShot(True)
+        self._panel_restore_timer.timeout.connect(self.restore_panel_widths)
 
         self._splitter_store_timer = QTimer(
             self
@@ -527,6 +533,18 @@ class ReaderPage(QWidget):
         self._gesture_origin = None
 
         self._last_horizontal_action = 0.0
+
+        self._chapter_scroll_transition_active = False
+        self._chapter_scroll_gesture_blocked = False
+        self._chapter_scroll_gesture_in_progress = False
+        self._chapter_scroll_request = None
+        self._chapter_scroll_timer = QTimer(self)
+        self._chapter_scroll_timer.setSingleShot(True)
+        self._chapter_scroll_timer.timeout.connect(self._advance_chapter_on_scroll)
+        self._chapter_scroll_idle_timer = QTimer(self)
+        self._chapter_scroll_idle_timer.setSingleShot(True)
+        self._chapter_scroll_idle_timer.setInterval(180)
+        self._chapter_scroll_idle_timer.timeout.connect(self._finish_chapter_scroll_gesture)
 
         self.read_saved_style()
 
@@ -839,79 +857,12 @@ class ReaderPage(QWidget):
         detail="",
     ):
 
-        line = QWidget(
-            self.settings_content
-        )
-
-        line.setObjectName(
-            "readerOptionRow"
-        )
-
-        row = QHBoxLayout(
-            line
-        )
-
-        row.setContentsMargins(
-            2,
-            6,
-            2,
-            6,
-        )
-
-        row.setSpacing(
-            16
-        )
-
-        labels = row_label(
-            title,
-            detail,
-        )
-
-        labels.setObjectName(
-            "readerOptionLabels"
-        )
-
-        row.addWidget(
-            labels,
-            1,
-            Qt.AlignVCenter,
-        )
-
-        if isinstance(
-            control,
-            Toggle,
-        ):
-
-            row.addWidget(
-                control,
-                0,
-                Qt.AlignRight
-                | Qt.AlignVCenter,
-            )
-
-        else:
-
-            control.setMinimumWidth(
-                252
-            )
-
-            control.setSizePolicy(
-                QSizePolicy.Expanding,
-                QSizePolicy.Preferred,
-            )
-
-            row.addWidget(
-                control,
-                0,
-                Qt.AlignRight
-                | Qt.AlignVCenter,
-            )
-
-        line.setMinimumHeight(
-            50
-            if not detail
-            else 64
-        )
+        labels = row_label(title, detail)
+        labels.setObjectName("readerOptionLabels")
+        if not isinstance(control, Toggle):
+            control.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        line = ResponsiveRow(labels, control, self.settings_content)
+        line.setObjectName("readerOptionRow")
 
         layout.addWidget(
             line
@@ -940,9 +891,7 @@ class ReaderPage(QWidget):
             "readerSliderControl"
         )
 
-        frame.setMinimumWidth(
-            252
-        )
+        frame.setMinimumWidth(190)
 
         line = QHBoxLayout(
             frame
@@ -998,9 +947,7 @@ class ReaderPage(QWidget):
             "readerSettingValue"
         )
 
-        number.setFixedWidth(
-            54
-        )
+        number.setMinimumWidth(number.fontMetrics().horizontalAdvance(f"{high}{suffix}") + 12)
 
         number.setMinimumHeight(
             30
@@ -1051,11 +998,9 @@ class ReaderPage(QWidget):
             "readerSegmentHolder"
         )
 
-        holder.setMinimumWidth(
-            252
-        )
+        holder.setMinimumWidth(0)
 
-        line = QHBoxLayout(
+        line = WrapLayout(
             holder
         )
 
@@ -1172,10 +1117,7 @@ class ReaderPage(QWidget):
                     value
                 ] = button
 
-            line.addWidget(
-                button,
-                1,
-            )
+            line.addWidget(button)
 
             button.clicked.connect(
                 lambda _checked=False,
@@ -1277,7 +1219,7 @@ class ReaderPage(QWidget):
             2
         )
 
-        self.book_title = QLabel(
+        self.book_title = ElidedLabel(
             "Litenova Reader",
             header,
         )
@@ -1286,11 +1228,9 @@ class ReaderPage(QWidget):
             "readerHeaderTitle"
         )
 
-        self.book_title.setMaximumWidth(
-            270
-        )
+        self.book_title.setMinimumWidth(80)
 
-        self.author = QLabel(
+        self.author = ElidedLabel(
             "",
             header,
         )
@@ -1307,9 +1247,7 @@ class ReaderPage(QWidget):
             self.author
         )
 
-        bar.addLayout(
-            book_titles
-        )
+        bar.addLayout(book_titles, 1)
 
         separator = QFrame(
             header
@@ -1343,7 +1281,7 @@ class ReaderPage(QWidget):
             "readerHeaderTitle"
         )
 
-        self.chapter_title = QLabel(
+        self.chapter_title = ElidedLabel(
             "Open a book to begin",
             header,
         )
@@ -1533,13 +1471,9 @@ class ReaderPage(QWidget):
             "readerTocPanel"
         )
 
-        self.toc_panel.setMinimumWidth(
-            190
-        )
+        self.toc_panel.setMinimumWidth(190)
 
-        self.toc_panel.setMaximumWidth(
-            490
-        )
+        self.toc_panel.setMaximumWidth(380)
 
         toc_layout = QVBoxLayout(
             self.toc_panel
@@ -1604,6 +1538,8 @@ class ReaderPage(QWidget):
             self.toc_panel
         )
 
+        self.toc_list.setTextElideMode(Qt.ElideRight)
+        self.toc_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.toc_list.currentRowChanged.connect(
             self.jump_to_chapter
         )
@@ -1655,9 +1591,7 @@ class ReaderPage(QWidget):
             True
         )
 
-        self.reader.setMinimumWidth(
-            240
-        )
+        self.reader.setMinimumWidth(320)
 
         self.reader.verticalScrollBar().valueChanged.connect(
             self.on_scroll_changed
@@ -1694,13 +1628,9 @@ class ReaderPage(QWidget):
             Qt.ScrollBarAlwaysOff
         )
 
-        self.settings_panel.setMinimumWidth(
-            420
-        )
+        self.settings_panel.setMinimumWidth(280)
 
-        self.settings_panel.setMaximumWidth(
-            680
-        )
+        self.settings_panel.setMaximumWidth(480)
 
         self.settings_content = QWidget()
 
@@ -1717,10 +1647,10 @@ class ReaderPage(QWidget):
         )
 
         side.setContentsMargins(
-            22,
-            20,
-            22,
-            26,
+            12,
+            12,
+            12,
+            16,
         )
 
         side.setSpacing(
@@ -1741,7 +1671,7 @@ class ReaderPage(QWidget):
         # FONT FAMILY
         # ====================================================
 
-        self.font_combo = QComboBox(
+        self.font_combo = ElidedComboBox(
             self.settings_content
         )
 
@@ -1749,9 +1679,7 @@ class ReaderPage(QWidget):
             36
         )
 
-        self.font_combo.setMinimumWidth(
-            252
-        )
+        configure_combo(self.font_combo, 160)
 
         for name in FONTS:
 
@@ -2533,13 +2461,13 @@ class ReaderPage(QWidget):
         }
 
         QLabel#readerHeaderTitle {
-            font: 600 15px Georgia;
+            font: 600 14px "Segoe UI";
             color: #e8e8f5;
             background: transparent;
         }
 
         QLabel#readerHeaderSub {
-            font: 11px Georgia;
+            font: 12px "Segoe UI";
             color: #b5b7ca;
             background: transparent;
         }
@@ -2602,11 +2530,11 @@ class ReaderPage(QWidget):
         }
 
         QListWidget::item {
-            padding: 10px 6px;
+            padding: 6px 6px;
         }
 
         QListWidget::item:selected {
-            background: #484968;
+            background: #303449;
             border-radius: 5px;
         }
 
@@ -2630,7 +2558,7 @@ class ReaderPage(QWidget):
         QLabel#readerSettingsHeading {
             background: transparent;
             color: #f0efff;
-            font-size: 20px;
+            font-size: 16px;
             font-weight: 700;
             padding: 0 0 6px 0;
         }
@@ -2791,7 +2719,7 @@ class ReaderPage(QWidget):
         QLabel#readerFooterText {
             background: transparent;
             color: #c6c8db;
-            font: 11px Georgia;
+            font: 12px "Segoe UI";
         }
 
         QScrollBar:vertical {
@@ -3784,6 +3712,7 @@ class ReaderPage(QWidget):
         book,
     ):
 
+        self._reset_chapter_scroll()
         if self.book is not None:
 
             self.save_current_progress()
@@ -4215,6 +4144,7 @@ class ReaderPage(QWidget):
         self.is_restoring_scroll = False
         self._pending_chapter_position = None
         self._pending_chapter_save = False
+        self._chapter_scroll_transition_active = False
 
         self.update_progress_bar()
 
@@ -4412,6 +4342,7 @@ class ReaderPage(QWidget):
 
     def release_book_content(self):
         """Discard only this book's content, after its final progress save."""
+        self._reset_chapter_scroll()
         if self.book is None:
             return
         self._render_generation += 1
@@ -4800,7 +4731,7 @@ class ReaderPage(QWidget):
             self._settings_open
             and self.settings_panel.isVisible()
             and self.settings_panel.width()
-            >= 420
+            >= self.settings_panel.minimumWidth()
         ):
 
             width = (
@@ -4849,8 +4780,22 @@ class ReaderPage(QWidget):
             else 0
         )
 
+        # Respect the user's splitter widths. Shrink only when both panels
+        # would otherwise consume the reading canvas in a smaller window.
+        minimum_left = self.toc_panel.minimumWidth() if self._toc_open else 0
+        minimum_right = self.settings_panel.minimumWidth() if self._settings_open else 0
+        handles = self.body_splitter.handleWidth() * (int(self._toc_open) + int(self._settings_open))
+        budget = max(minimum_left + minimum_right, total - handles - 320)
+        left = max(minimum_left, min(left, self.toc_panel.maximumWidth()))
+        right = max(minimum_right, min(right, self.settings_panel.maximumWidth()))
+        extra = max(0, left - minimum_left) + max(0, right - minimum_right)
+        if left + right > budget and extra:
+            scale = max(0, budget - minimum_left - minimum_right) / extra
+            left = minimum_left + round((left - minimum_left) * scale)
+            right = minimum_right + round((right - minimum_right) * scale)
+
         center = max(
-            300,
+            320,
             (
                 total
                 - left
@@ -4900,10 +4845,7 @@ class ReaderPage(QWidget):
             )
         )
 
-        QTimer.singleShot(
-            0,
-            self.restore_panel_widths,
-        )
+        self._panel_restore_timer.start(0)
 
     # ========================================================
     # TOGGLE SETTINGS
@@ -4925,10 +4867,7 @@ class ReaderPage(QWidget):
             self._settings_open
         )
 
-        QTimer.singleShot(
-            0,
-            self.restore_panel_widths,
-        )
+        self._panel_restore_timer.start(0)
 
     # ========================================================
     # TOGGLE SEARCH
@@ -5304,7 +5243,7 @@ class ReaderPage(QWidget):
 
                 item.setToolTip(
                     (
-                        "Bookmarked — select to "
+                        title + "\nBookmarked — select to "
                         "jump to your saved position"
                     )
                 )
@@ -5320,7 +5259,7 @@ class ReaderPage(QWidget):
                 )
 
                 item.setToolTip(
-                    ""
+                    title
                 )
 
     # ========================================================
@@ -5506,6 +5445,77 @@ class ReaderPage(QWidget):
     # EVENT FILTER
     # ========================================================
 
+    def _reset_chapter_scroll(self):
+        self._chapter_scroll_timer.stop()
+        self._chapter_scroll_idle_timer.stop()
+        self._chapter_scroll_request = None
+        self._chapter_scroll_transition_active = False
+        self._chapter_scroll_gesture_blocked = False
+        self._chapter_scroll_gesture_in_progress = False
+
+    def _finish_chapter_scroll_gesture(self):
+        if self._chapter_scroll_gesture_in_progress:
+            return
+        if self._chapter_scroll_transition_active:
+            self._chapter_scroll_idle_timer.start()
+        else:
+            self._chapter_scroll_gesture_blocked = False
+
+    def _queue_chapter_scroll(self, event):
+        # Pixel deltas take precedence; comparing axes in the same units keeps
+        # diagonal touchpad input out of both navigation paths at once.
+        delta = event.pixelDelta() if not event.pixelDelta().isNull() else event.angleDelta()
+        phase = event.phase()
+        self._chapter_scroll_gesture_in_progress = phase in (
+            Qt.ScrollBegin, Qt.ScrollUpdate, Qt.ScrollMomentum,
+        )
+        if phase == Qt.ScrollBegin and not self._chapter_scroll_transition_active:
+            self._chapter_scroll_gesture_blocked = False
+            self._chapter_scroll_idle_timer.stop()
+        if self._chapter_scroll_gesture_blocked and (delta.y() or event.phase() == Qt.ScrollEnd):
+            self._chapter_scroll_idle_timer.start()
+        if (not delta.y() or abs(delta.y()) <= abs(delta.x())
+                or self.book is None or not self.chapters
+                or self.is_restoring_scroll or self.style_timer.isActive()
+                or self._chapter_scroll_transition_active
+                or self._chapter_scroll_gesture_blocked):
+            return False
+        direction = -1 if delta.y() > 0 else 1
+        target = self.current_chapter + direction
+        if not 0 <= target < len(self.chapters):
+            return False
+        bar = self.reader.verticalScrollBar()
+        if (bar.value() > bar.minimum() if direction < 0
+                else bar.value() < bar.maximum()):
+            return False
+        self._chapter_scroll_transition_active = True
+        self._chapter_scroll_gesture_blocked = True
+        self._chapter_scroll_request = (
+            self.book['id'], self.current_chapter, self._render_generation, direction,
+        )
+        self._chapter_scroll_idle_timer.start()
+        self._chapter_scroll_timer.start(0)
+        return True
+
+    def _advance_chapter_on_scroll(self):
+        request, self._chapter_scroll_request = self._chapter_scroll_request, None
+        direction = request[3] if request is not None else 0
+        bar = self.reader.verticalScrollBar()
+        if (self.book is None or not self.chapters or self.is_restoring_scroll
+                or self.style_timer.isActive()
+                or direction not in (-1, 1)
+                or not 0 <= self.current_chapter + direction < len(self.chapters)
+                or request != (self.book['id'], self.current_chapter, self._render_generation, direction)
+                or (bar.value() > bar.minimum() if direction < 0
+                    else bar.value() < bar.maximum())):
+            self._chapter_scroll_transition_active = False
+            return
+        # Both directions save through the deduplicated progress path. Boundary
+        # navigation deliberately ignores bookmarks in the destination chapter.
+        self.save_current_progress()
+        self.current_chapter += direction
+        self.display_chapter(position=1.0 if direction < 0 else 0.0)
+
     def eventFilter(
         self,
         watched,
@@ -5522,6 +5532,10 @@ class ReaderPage(QWidget):
                 self.reader.viewport(),
             )
         ):
+
+            if (watched is self.reader.viewport() and event.type() == QEvent.Wheel
+                    and not event.modifiers() and self._queue_chapter_scroll(event)):
+                return True
 
             if (
                 not self.arrow_chapters
@@ -5630,6 +5644,8 @@ class ReaderPage(QWidget):
                     and not event.modifiers()
                 ):
 
+                    wheel_delta = (event.pixelDelta() if not event.pixelDelta().isNull()
+                                   else event.angleDelta())
                     dx = (
                         event
                         .angleDelta()
@@ -5649,6 +5665,8 @@ class ReaderPage(QWidget):
                             dx
                         )
                         >= 40
+                        and abs(wheel_delta.x()) >= abs(wheel_delta.y())
+                        and not self._chapter_scroll_gesture_blocked
                         and (
                             time.monotonic()
                             - self._last_horizontal_action
@@ -5816,19 +5834,7 @@ class ReaderPage(QWidget):
     def go_back(
         self,
     ):
-
-        self.style_timer.stop()
-
-        self.scroll_save_timer.stop()
-
-        self.save_current_progress()
-
-        if self._fullscreen_by_reader:
-
-            self.set_reader_fullscreen(
-                False
-            )
-
+        self.close_book()
         self.back_requested.emit()
 
     # ========================================================
@@ -5844,10 +5850,7 @@ class ReaderPage(QWidget):
             event
         )
 
-        QTimer.singleShot(
-            0,
-            self.restore_panel_widths,
-        )
+        self._panel_restore_timer.start(0)
 
         main = (
             self.window()
@@ -5865,13 +5868,15 @@ class ReaderPage(QWidget):
         )
 
     # ========================================================
-    # HIDE EVENT
+    # EXPLICIT BOOK CLOSE
     # ========================================================
 
-    def hideEvent(
+    def close_book(
         self,
-        event,
     ):
+        """Save and release a book only when navigation or shutdown closes it."""
+        if self.book is None:
+            return
 
         self._splitter_store_timer.stop()
 
@@ -5906,6 +5911,8 @@ class ReaderPage(QWidget):
 
             main.sidebar.show()
 
-        super().hideEvent(
-            event
-        )
+    def hideEvent(self, event):
+        # Qt also hides this page when its window is minimized. Keep its book,
+        # document, pending layout work and scroll state alive for restoration.
+        self.apply_keep_screen_on(False)
+        super().hideEvent(event)

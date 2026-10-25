@@ -18,11 +18,12 @@ QWidget#sidebar {
    ========================================================= */
 
 QLabel {
+    background: transparent;
     color: #eeeeee;
 }
 
 QLabel#pageTitle {
-    font-size: 30px;
+    font-size: 24px;
     font-weight: 600;
     color: #eeeeee;
 }
@@ -66,7 +67,7 @@ QPushButton {
     border: 1px solid #3c3f4d;
     border-radius: 7px;
 
-    padding: 8px 12px;
+    padding: 6px 12px;
 }
 
 QPushButton:hover {
@@ -135,7 +136,7 @@ QComboBox QAbstractItemView {
     background-color: #292c38;
     color: #eeeeee;
 
-    selection-background-color: #514d73;
+    selection-background-color: #303449;
 }
 
 /* =========================================================
@@ -187,7 +188,7 @@ QListWidget {
 }
 
 QListWidget::item {
-    padding: 10px 8px;
+    padding: 6px 8px;
 
     border-radius: 5px;
 }
@@ -197,7 +198,7 @@ QListWidget::item:hover {
 }
 
 QListWidget::item:selected {
-    background-color: #514d73;
+    background-color: #303449;
     color: #ffffff;
 }
 
@@ -242,6 +243,7 @@ QMessageBox {
 }
 
 QMessageBox QLabel {
+    background: transparent;
     color: #eeeeee;
 }
 

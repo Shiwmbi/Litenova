@@ -1,3 +1,4 @@
+from app.widgets.layout_helpers import ElidedLabel, persist_splitter
 from collections import OrderedDict
 from math import ceil
 from pathlib import Path
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QFrame,
     QStackedWidget,
+    QSplitter,
     QMessageBox,
 )
 
@@ -336,7 +338,7 @@ class ComicReaderPage(QWidget):
             self.toggle_contents
         )
 
-        self.book_title = QLabel(
+        self.book_title = ElidedLabel(
             "Comic Reader"
         )
 
@@ -344,7 +346,7 @@ class ComicReaderPage(QWidget):
             "readerBookTitle"
         )
 
-        self.mode_label = QLabel()
+        self.mode_label = ElidedLabel()
 
         self.mode_label.setObjectName(
             "secondaryLabel"
@@ -362,15 +364,11 @@ class ComicReaderPage(QWidget):
             15
         )
 
-        top_layout.addWidget(
-            self.book_title
-        )
+        top_layout.addWidget(self.book_title, 1)
 
-        top_layout.addStretch()
 
-        top_layout.addWidget(
-            self.mode_label
-        )
+
+        top_layout.addWidget(self.mode_label, 1)
 
         # ====================================================
         # ZOOM BAR
@@ -468,7 +466,7 @@ class ComicReaderPage(QWidget):
             "Reset"
         )
 
-        self.zoom_reset_button.setFixedHeight(
+        self.zoom_reset_button.setMinimumHeight(
             34
         )
 
@@ -506,11 +504,13 @@ class ComicReaderPage(QWidget):
         # READER AREA
         # ====================================================
 
-        reading_layout = QHBoxLayout()
-
-        reading_layout.setSpacing(
-            10
-        )
+        reading_layout = QSplitter(Qt.Horizontal, self)
+        self.reading_splitter = reading_layout
+        reading_layout.setObjectName("comicReadingSplitter")
+        reading_layout.setChildrenCollapsible(False)
+        reading_layout.setHandleWidth(7)
+        reading_layout.setOpaqueResize(False)
+        reading_layout.setStyleSheet("QSplitter::handle { background: #252936; } QSplitter::handle:hover { background: #626783; }")
 
         # ====================================================
         # CONTENTS PANEL
@@ -522,9 +522,8 @@ class ComicReaderPage(QWidget):
             "tocPanel"
         )
 
-        self.contents_panel.setFixedWidth(
-            280
-        )
+        self.contents_panel.setMinimumWidth(190)
+        self.contents_panel.setMaximumWidth(380)
 
         contents_layout = QVBoxLayout(
             self.contents_panel
@@ -541,11 +540,12 @@ class ComicReaderPage(QWidget):
             "Chapters"
         )
 
-        contents_title.setObjectName(
-            "sectionTitle"
-        )
+        contents_title.setObjectName("comicContentsHeading")
+        contents_title.setStyleSheet("background: transparent; border: none; padding: 0; font-size: 14px; font-weight: 600;")
 
         self.chapter_list = QListWidget()
+        self.chapter_list.setTextElideMode(Qt.ElideRight)
+        self.chapter_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         self.chapter_list.currentRowChanged.connect(
             self.jump_to_chapter
@@ -669,10 +669,12 @@ class ComicReaderPage(QWidget):
             self.contents_panel
         )
 
-        reading_layout.addWidget(
-            self.reader_stack,
-            1,
-        )
+        self.reader_stack.setMinimumWidth(320)
+        reading_layout.addWidget(self.reader_stack)
+        reading_layout.setStretchFactor(0, 0)
+        reading_layout.setStretchFactor(1, 1)
+        reading_layout.setSizes([240, 760])
+        persist_splitter(reading_layout, "comic_splitter")
 
         # ====================================================
         # BOTTOM NAVIGATION
@@ -744,10 +746,7 @@ class ComicReaderPage(QWidget):
             zoom_layout
         )
 
-        main_layout.addLayout(
-            reading_layout,
-            1,
-        )
+        main_layout.addWidget(reading_layout, 1)
 
         main_layout.addLayout(
             navigation_layout
@@ -1581,9 +1580,8 @@ class ComicReaderPage(QWidget):
                     f"Chapter {index + 1}"
                 )
 
-            self.chapter_list.addItem(
-                str(title)
-            )
+            self.chapter_list.addItem(str(title))
+            self.chapter_list.item(self.chapter_list.count() - 1).setToolTip(str(title))
 
         self.chapter_list.setCurrentRow(
             self.current_chapter

@@ -1,5 +1,7 @@
 """Litenova Library cards with readable book-type badges on grid covers."""
 
+from app.widgets.layout_helpers import ElidedLabel
+
 from collections import OrderedDict
 from math import ceil
 from pathlib import Path
@@ -237,12 +239,12 @@ class BookCard(QFrame):
 
         root.addWidget(self.cover_box)
 
-        self.title_label = QLabel(str(self.book_value("title", "Unknown Title")))
+        self.title_label = ElidedLabel(str(self.book_value("title", "Unknown Title")))
         self.title_label.setObjectName("libraryCardTitle")
         self.title_label.setWordWrap(False)
         self.title_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
-        self.author_label = QLabel(str(self.book_value("author", "Unknown Author")))
+        self.author_label = ElidedLabel(str(self.book_value("author", "Unknown Author")))
         self.author_label.setObjectName("libraryCardAuthor")
         self.author_label.setWordWrap(False)
         self.author_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -330,15 +332,11 @@ class BookCard(QFrame):
         """)
 
     def elide_text(self):
-        width = max(130, self.width() - 285) if self.mode == "list" else max(75, self.cover_width - 37)
         title = str(self.book_value("title", "Unknown Title"))
         author = str(self.book_value("author", "Unknown Author"))
-        self.title_label.setText(self.title_label.fontMetrics().elidedText(
-            title, Qt.ElideRight, width
-        ))
-        self.author_label.setText(self.author_label.fontMetrics().elidedText(
-            author, Qt.ElideRight, width
-        ))
+        self.setToolTip(title + "\n" + author)
+        self.title_label.setText(title)
+        self.author_label.setText(author)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

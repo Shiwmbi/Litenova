@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 
 # ============================================================
-# LITENOVA v3.0.4 RELEASE BUILDER
+# LITENOVA v3.1.0 RELEASE BUILDER
 # ============================================================
 
 
@@ -123,7 +123,7 @@ $ReleaseChecksum = Join-Path `
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host " LITENOVA v3.0.4 CLEAN GITHUB RELEASE"
+Write-Host " LITENOVA v3.1.0 CLEAN GITHUB RELEASE"
 Write-Host "============================================================"
 Write-Host ""
 
@@ -172,7 +172,7 @@ Write-Host "Required files exist."
 # 2. CHECK VERSION
 # ============================================================
 
-Step "2 / 9 - Checking version 3.0.4"
+Step "2 / 9 - Checking version 3.1.0"
 
 
 $VersionText = Get-Content `
@@ -180,14 +180,14 @@ $VersionText = Get-Content `
     -Raw
 
 
-if ($VersionText -notmatch '3\.0\.4') {
+if ($VersionText -notmatch '3\.1\.0') {
 
-    Fail "version_info.txt does not contain version 3.0.4."
+    Fail "version_info.txt does not contain version 3.1.0."
 }
 
 
 Write-Host "PASS"
-Write-Host "version_info.txt contains 3.0.4."
+Write-Host "version_info.txt contains 3.1.0."
 
 
 # ============================================================
@@ -366,7 +366,7 @@ Write-Host "Old build files removed."
 # 7. BUILD
 # ============================================================
 
-Step "7 / 9 - Building Litenova v3.0.4"
+Step "7 / 9 - Building Litenova v3.1.0"
 
 
 & $Python `
@@ -419,20 +419,20 @@ Write-Host $ProductVersion
 Write-Host ""
 
 
-if ($FileVersion -notlike "3.0.4*") {
+if ($FileVersion -notlike "3.1.0*") {
 
-    Fail "EXE FileVersion is not 3.0.4."
+    Fail "EXE FileVersion is not 3.1.0."
 }
 
 
-if ($ProductVersion -notlike "3.0.4*") {
+if ($ProductVersion -notlike "3.1.0*") {
 
-    Fail "EXE ProductVersion is not 3.0.4."
+    Fail "EXE ProductVersion is not 3.1.0."
 }
 
 
 Write-Host "PASS"
-Write-Host "EXE version is 3.0.4."
+Write-Host "EXE version is 3.1.0."
 
 
 # ============================================================
@@ -521,7 +521,7 @@ $SizeMB = [Math]::Round(
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host " LITENOVA v3.0.4 IS READY FOR GITHUB"
+Write-Host " LITENOVA v3.1.0 IS READY FOR GITHUB"
 Write-Host "============================================================"
 Write-Host ""
 

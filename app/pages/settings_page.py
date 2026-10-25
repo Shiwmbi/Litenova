@@ -3,6 +3,8 @@
 Only implemented controls are interactive.
 """
 
+from app.widgets.layout_helpers import ResponsiveRow, configure_combo, ElidedComboBox
+
 import os
 import sys
 from pathlib import Path
@@ -36,6 +38,7 @@ from PySide6.QtWidgets import (
     QSlider,
     QVBoxLayout,
     QWidget,
+    QSizePolicy,
     QStackedWidget,
     QDialog,
     QProgressBar,
@@ -142,6 +145,7 @@ def row_label(
     name.setObjectName(
         "settingName"
     )
+    name.setWordWrap(True)
 
     layout.addWidget(
         name
@@ -273,15 +277,13 @@ class SettingsCard(QFrame):
         )
 
         self.layout_.setContentsMargins(
-            20,
-            18,
-            20,
-            19,
+            12,
+            12,
+            12,
+            12,
         )
 
-        self.layout_.setSpacing(
-            13
-        )
+        self.layout_.setSpacing(12)
 
         header = QHBoxLayout()
 
@@ -363,40 +365,8 @@ class SettingsCard(QFrame):
         control,
     ):
 
-        widget = QWidget(
-            self
-        )
-
+        widget = ResponsiveRow(row_label(title, description), control, self)
         widget.setObjectName("settingsRow")
-
-        row = QHBoxLayout(
-            widget
-        )
-
-        row.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
-
-        row.setSpacing(
-            15
-        )
-
-        row.addWidget(
-            row_label(
-                title,
-                description,
-            ),
-            1,
-        )
-
-        row.addWidget(
-            control,
-            0,
-            Qt.AlignVCenter,
-        )
 
         self.layout_.addWidget(
             widget
@@ -514,9 +484,7 @@ class DataOperationDialog(QDialog):
             26,
         )
 
-        layout.setSpacing(
-            13
-        )
+        layout.setSpacing(12)
 
         heading = QLabel(
             title,
@@ -582,7 +550,7 @@ class DataOperationDialog(QDialog):
             QDialog#dataOperationDialog {
                 background: #1b1e28;
                 border: 1px solid #515577;
-                border-radius: 12px;
+                border-radius: 7px;
                 color: #f1f0ff;
             }
 
@@ -768,17 +736,13 @@ class SettingsPage(QWidget):
         width=210,
     ):
 
-        widget = QComboBox(
+        widget = ElidedComboBox(
             self
         )
 
-        widget.setFixedWidth(
-            width
-        )
+        configure_combo(widget, min(width, 170))
 
-        widget.setFixedHeight(
-            37
-        )
+        widget.setMinimumHeight(37)
 
         for text, value in choices:
 
@@ -929,10 +893,11 @@ class SettingsPage(QWidget):
             "settingsSearch"
         )
 
-        self.search.setFixedSize(
-            300,
-            40,
-        )
+        self.search.setMinimumHeight(40)
+        self.search.setMinimumWidth(160)
+        self.search.setMaximumWidth(300)
+        self.search.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        description.setWordWrap(True)
 
         self.search.addAction(
             ui_icon(
@@ -978,9 +943,7 @@ class SettingsPage(QWidget):
         scroller.setHorizontalScrollBarPolicy(
             Qt.ScrollBarAlwaysOff
         )
-        scroller.setVerticalScrollBarPolicy(
-            Qt.ScrollBarAlwaysOff
-        )
+        scroller.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         content = QWidget()
 
@@ -995,9 +958,7 @@ class SettingsPage(QWidget):
             6,
         )
 
-        columns.setSpacing(
-            13
-        )
+        columns.setSpacing(12)
 
         left_column = QVBoxLayout()
 
@@ -1008,9 +969,7 @@ class SettingsPage(QWidget):
             0,
         )
 
-        left_column.setSpacing(
-            13
-        )
+        left_column.setSpacing(12)
 
         right_column = QVBoxLayout()
 
@@ -1021,9 +980,7 @@ class SettingsPage(QWidget):
             0,
         )
 
-        right_column.setSpacing(
-            13
-        )
+        right_column.setSpacing(12)
 
         # ====================================================
         # CARDS
@@ -1234,16 +1191,15 @@ class SettingsPage(QWidget):
             32,
         )
 
-        self.font_slider.setFixedWidth(
-            145
-        )
+        self.font_slider.setMinimumWidth(110)
+        self.font_slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         self.font_size_label = QLabel(
             "17 pt"
         )
 
-        self.font_size_label.setFixedWidth(
-            38
+        self.font_size_label.setMinimumWidth(
+            self.font_size_label.fontMetrics().horizontalAdvance("32 pt") + 8
         )
 
         frow.addWidget(
@@ -1305,20 +1261,6 @@ class SettingsPage(QWidget):
         # APPEARANCE
         # ====================================================
 
-        theme = QLabel(
-            "Litenova Dark · Customizable"
-        )
-
-        theme.setObjectName(
-            "settingsStatic"
-        )
-
-        self.appearance.add_row(
-            "Interface theme",
-            "Choose Mercury, Neptune or Aurora (all dark)",
-            theme,
-        )
-
         self.appearance.add_full(
             "appearance theme color presets live preview",
             self.action(
@@ -1347,9 +1289,8 @@ class SettingsPage(QWidget):
             170
         )
 
-        self.data_path.setMaximumWidth(
-            290
-        )
+        self.data_path.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.data_path.textChanged.connect(self.data_path.setToolTip)
 
         self.data_card.add_row(
             "App data location",
@@ -1388,9 +1329,8 @@ class SettingsPage(QWidget):
             170
         )
 
-        self.backup_path.setMaximumWidth(
-            290
-        )
+        self.backup_path.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.backup_path.textChanged.connect(self.backup_path.setToolTip)
 
         self.data_card.add_row(
             "Import / export folder",
@@ -1538,7 +1478,7 @@ class SettingsPage(QWidget):
 
             QLabel#settingsHeading {
                 color: #f2f0ff;
-                font-size: 29px;
+                font-size: 24px;
                 font-weight: 700;
             }
 
@@ -1550,7 +1490,7 @@ class SettingsPage(QWidget):
             QFrame#settingsCard {
                 background: #191b22;
                 border: 1px solid #323744;
-                border-radius: 11px;
+                border-radius: 7px;
             }
 
             QLabel#settingsCardTitle {

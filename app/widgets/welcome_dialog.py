@@ -9,6 +9,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
+    QScrollArea,
     QFrame,
     QGraphicsOpacityEffect,
     QHBoxLayout,
@@ -48,15 +49,10 @@ class WelcomeDialog(QDialog):
             True
         )
 
-        self.setMinimumSize(
-            650,
-            500,
-        )
-
-        self.resize(
-            700,
-            520,
-        )
+        available = self.screen().availableGeometry().adjusted(12, 12, -12, -12)
+        self.setMinimumSize(min(650, available.width()), min(500, available.height()))
+        self.setMaximumSize(available.size())
+        self.resize(min(700, available.width()), min(520, available.height()))
 
         self.setWindowFlag(
             Qt.WindowContextHelpButtonHint,
@@ -367,9 +363,13 @@ class WelcomeDialog(QDialog):
             privacy
         )
 
-        root.addWidget(
-            card
-        )
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        scroll.setWidget(card)
+        root.addWidget(scroll)
 
         # ====================================================
         # LOCAL STYLE

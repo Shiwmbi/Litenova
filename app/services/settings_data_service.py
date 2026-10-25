@@ -12,6 +12,8 @@ Handles:
 - Recovery backup retention
 """
 
+import base64
+import binascii
 import json
 import logging
 import os
@@ -29,7 +31,7 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QByteArray, QSettings
 
 from app.services.path_service import (
     get_data_dir,
@@ -755,7 +757,15 @@ def create_backup(
             )
         )
 
-        if isinstance(
+        if isinstance(value, QByteArray):
+            # JSON has no byte-array type. Preserve Qt state losslessly instead
+            # of exporting its Python string representation.
+            preferences[key] = {
+                "qt_type": "QByteArray",
+                "base64": base64.b64encode(bytes(value)).decode("ascii"),
+            }
+
+        elif isinstance(
             value,
             (
                 str,
@@ -1431,6 +1441,16 @@ def restore_backup(
             value,
         ) in preferences.items():
 
+            if (isinstance(value, dict)
+                    and value.get("qt_type") == "QByteArray"):
+                encoded = value.get("base64")
+                if not isinstance(encoded, str):
+                    continue
+                try:
+                    value = QByteArray(base64.b64decode(encoded, validate=True))
+                except (ValueError, binascii.Error):
+                    continue
+
             if (
                 isinstance(
                     key,
@@ -1443,6 +1463,7 @@ def restore_backup(
                         int,
                         float,
                         bool,
+                        QByteArray,
                     ),
                 )
             ):
